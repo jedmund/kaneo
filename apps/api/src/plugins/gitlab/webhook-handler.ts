@@ -11,11 +11,7 @@ import {
   type GitLabWebhookHeaders,
   verifyGitLabWebhookSignature,
 } from "./verify-signature";
-import {
-  dispatchGitLabWebhook,
-  type GitLabWebhookBinding,
-  gitLabObjectKind,
-} from "./webhook-events";
+import { dispatchGitLabWebhook, gitLabObjectKind } from "./webhook-events";
 
 async function requireWebhookBinding(repositoryId: string) {
   const binding = await db.query.integrationRepositoryTable.findFirst({
@@ -40,7 +36,8 @@ async function requireWebhookBinding(repositoryId: string) {
     });
   }
   return {
-    ...binding,
+    repository: binding,
+    integration: binding.integration,
     connection: binding.connection,
     webhookSecretCiphertext: binding.webhookSecretCiphertext,
   };
@@ -150,7 +147,7 @@ export async function handleGitLabWebhookRequest(input: {
   }
 
   const claimed = await claimDelivery({
-    repositoryId: binding.id,
+    repositoryId: binding.repository.id,
     deliveryId: input.headers.webhookId,
     eventName,
     bodySha256: createHash("sha256").update(input.rawBody).digest("hex"),
@@ -160,10 +157,7 @@ export async function handleGitLabWebhookRequest(input: {
   }
 
   try {
-    await dispatchGitLabWebhook(
-      payload,
-      binding as unknown as GitLabWebhookBinding,
-    );
+    await dispatchGitLabWebhook(payload, binding);
     await db
       .update(scmWebhookDeliveryTable)
       .set({
@@ -181,7 +175,7 @@ export async function handleGitLabWebhookRequest(input: {
       .set({ status: "failed", lastError: message })
       .where(eq(scmWebhookDeliveryTable.id, claimed.delivery.id));
     console.error("GitLab webhook processing failed", {
-      repositoryId: binding.id,
+      repositoryId: binding.repository.id,
       deliveryId: input.headers.webhookId,
       eventName,
       error: message,
