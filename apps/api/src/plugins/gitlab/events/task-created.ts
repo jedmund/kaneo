@@ -1,5 +1,6 @@
 import {
   createExternalLink,
+  findExternalLink,
   findExternalLinkByTaskAndType,
 } from "../../github/services/link-manager";
 import {
@@ -38,21 +39,31 @@ export async function handleTaskCreated(
     ),
   });
 
-  await createExternalLink({
-    taskId: event.taskId,
-    integrationId: context.integrationId,
-    integrationRepositoryId: context.integrationRepositoryId,
-    resourceType: "issue",
-    externalId: String(issue.iid),
-    url: issue.web_url,
-    title: issue.title,
-    metadata: {
-      state: issue.state,
-      globalId: issue.id,
-      createdFrom: "kaneo",
-      lastOutboundStateSyncAt: Date.now(),
-    },
-  });
+  try {
+    await createExternalLink({
+      taskId: event.taskId,
+      integrationId: context.integrationId,
+      integrationRepositoryId: context.integrationRepositoryId,
+      resourceType: "issue",
+      externalId: String(issue.iid),
+      url: issue.web_url,
+      title: issue.title,
+      metadata: {
+        state: issue.state,
+        globalId: issue.id,
+        createdFrom: "kaneo",
+        lastOutboundStateSyncAt: Date.now(),
+      },
+    });
+  } catch (error) {
+    const webhookLink = await findExternalLink(
+      context.integrationId,
+      "issue",
+      String(issue.iid),
+      context.integrationRepositoryId,
+    );
+    if (webhookLink?.taskId !== event.taskId) throw error;
+  }
 
   try {
     await decorateGitLabIssue({
