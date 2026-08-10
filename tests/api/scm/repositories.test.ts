@@ -28,6 +28,7 @@ describe("SCM repositories", () => {
         config: JSON.stringify({
           repositoryOwner: "usekaneo",
           repositoryName: "kaneo",
+          installationId: 81,
         }),
         isActive: true,
         ...timestamps,
@@ -39,7 +40,7 @@ describe("SCM repositories", () => {
       providerRepositoryId: "usekaneo/kaneo",
       fullPath: "usekaneo/kaneo",
       webUrl: "https://github.com/usekaneo/kaneo",
-      metadata: { legacyConfig: true },
+      metadata: { legacyConfig: true, installationId: 81 },
       isActive: true,
       ...timestamps,
     });

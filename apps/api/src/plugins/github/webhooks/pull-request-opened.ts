@@ -70,6 +70,7 @@ export async function handlePullRequestOpened(payload: PROpenedPayload) {
       integration.id,
       "pull_request",
       pull_request.number.toString(),
+      integration.repository.id,
     );
 
     if (existingLink) {
@@ -79,6 +80,7 @@ export async function handlePullRequestOpened(payload: PROpenedPayload) {
     await createExternalLink({
       taskId: task.id,
       integrationId: integration.id,
+      integrationRepositoryId: integration.repository.id,
       resourceType: "pull_request",
       externalId: pull_request.number.toString(),
       url: pull_request.html_url,

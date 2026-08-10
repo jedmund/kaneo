@@ -48,6 +48,7 @@ export async function handleIssueEdited(payload: IssueEditedPayload) {
       integration.id,
       "issue",
       issue.number.toString(),
+      integration.repository.id,
     );
 
     if (!externalLink) {

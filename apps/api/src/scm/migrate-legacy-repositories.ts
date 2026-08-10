@@ -4,6 +4,7 @@ import {
   externalLinkTable,
   integrationRepositoryTable,
 } from "../database/schema";
+import { migrateLegacyGiteaRepository } from "../gitea-integration/repositories";
 import { normalizeScmOrigin } from "./repositories";
 
 type LegacyIntegration = {
@@ -22,7 +23,7 @@ export type LegacyRepository = {
   providerRepositoryId: string;
   fullPath: string;
   webUrl: string;
-  metadata: { legacyConfig: true };
+  metadata: { legacyConfig: true; installationId?: number };
   isActive: boolean;
   createdAt: Date;
   updatedAt: Date;
@@ -66,7 +67,13 @@ export function legacyRepositoryFromIntegration(
         : fullPath.toLowerCase(),
     fullPath,
     webUrl: `${remoteOrigin}/${fullPath}`,
-    metadata: { legacyConfig: true },
+    metadata: {
+      legacyConfig: true,
+      ...(integration.type === "github" &&
+      typeof config.installationId === "number"
+        ? { installationId: config.installationId }
+        : {}),
+    },
     isActive: integration.isActive ?? true,
     createdAt: integration.createdAt,
     updatedAt: integration.updatedAt,
@@ -81,6 +88,7 @@ export function legacyRepositoryFromIntegration(
 export async function migrateLegacyScmRepositories(): Promise<void> {
   const integrations = await db.query.integrationTable.findMany({
     where: (table, { inArray }) => inArray(table.type, ["github", "gitea"]),
+    with: { project: true },
   });
 
   let migrated = 0;
@@ -117,6 +125,15 @@ export async function migrateLegacyScmRepositories(): Promise<void> {
             isNull(externalLinkTable.integrationRepositoryId),
           ),
         );
+
+      if (integration.type === "gitea") {
+        await migrateLegacyGiteaRepository({
+          integrationId: integration.id,
+          repositoryId: resolvedRepository.id,
+          workspaceId: integration.project.workspaceId,
+          config: JSON.parse(integration.config) as Record<string, unknown>,
+        });
+      }
 
       if (repository) migrated += 1;
     } catch (error) {

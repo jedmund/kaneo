@@ -5,6 +5,7 @@ import {
   defaultGitHubConfig,
   type GitHubConfig,
 } from "../../plugins/github/config";
+import { listAttachedGitHubRepositories } from "../repositories";
 
 async function getGithubIntegration(projectId: string) {
   const integration = await db.query.integrationTable.findFirst({
@@ -19,6 +20,7 @@ async function getGithubIntegration(projectId: string) {
   }
 
   const config = JSON.parse(integration.config) as GitHubConfig;
+  const repositories = await listAttachedGitHubRepositories(integration.id);
 
   return {
     id: integration.id,
@@ -31,6 +33,7 @@ async function getGithubIntegration(projectId: string) {
     isActive: integration.isActive,
     createdAt: integration.createdAt,
     updatedAt: integration.updatedAt,
+    repositories,
   };
 }
 

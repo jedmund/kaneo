@@ -160,6 +160,18 @@ export const githubIntegrationSchema = v.object({
   isActive: v.nullable(v.boolean()),
   createdAt: v.date(),
   updatedAt: v.date(),
+  repositories: v.array(
+    v.object({
+      id: v.string(),
+      providerRepositoryId: v.string(),
+      fullPath: v.string(),
+      webUrl: v.string(),
+      defaultBranch: v.nullable(v.string()),
+      installationId: v.nullable(v.number()),
+      private: v.boolean(),
+      isActive: v.boolean(),
+    }),
+  ),
 });
 
 export const giteaIntegrationSchema = v.object({
@@ -176,6 +188,18 @@ export const giteaIntegrationSchema = v.object({
   isActive: v.nullable(v.boolean()),
   createdAt: v.date(),
   updatedAt: v.date(),
+  repositories: v.array(
+    v.object({
+      id: v.string(),
+      providerRepositoryId: v.string(),
+      fullPath: v.string(),
+      webUrl: v.string(),
+      defaultBranch: v.nullable(v.string()),
+      webhookUrl: v.string(),
+      webhookSecret: v.string(),
+      isActive: v.boolean(),
+    }),
+  ),
 });
 
 export const integrationEventsSchema = v.object({

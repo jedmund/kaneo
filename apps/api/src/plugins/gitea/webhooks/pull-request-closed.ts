@@ -58,6 +58,10 @@ export async function handleGiteaPullRequestClosed(
     const externalLink = await db.query.externalLinkTable.findFirst({
       where: and(
         eq(externalLinkTable.integrationId, integration.id),
+        eq(
+          externalLinkTable.integrationRepositoryId,
+          integration.repository.id,
+        ),
         eq(externalLinkTable.resourceType, "pull_request"),
         eq(externalLinkTable.externalId, pull_request.number.toString()),
       ),

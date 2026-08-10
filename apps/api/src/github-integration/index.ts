@@ -21,6 +21,7 @@ import getGithubIntegration from "./controllers/get-github-integration";
 import { importIssues } from "./controllers/import-issues";
 import listUserRepositories from "./controllers/list-user-repositories";
 import verifyGithubInstallation from "./controllers/verify-github-installation";
+import { detachGitHubRepository } from "./repositories";
 
 const githubAppInfoSchema = v.object({
   appName: v.nullable(v.string()),
@@ -295,6 +296,34 @@ const githubIntegration = new Hono<{
     },
   )
   .delete(
+    "/project/:projectId/repositories/:repositoryId",
+    describeRoute({
+      operationId: "detachGitHubRepository",
+      tags: ["GitHub"],
+      description: "Detach one GitHub repository from a project",
+      responses: {
+        200: {
+          description: "Repository detached",
+          content: {
+            "application/json": {
+              schema: resolver(v.object({ success: v.boolean() })),
+            },
+          },
+        },
+      },
+    }),
+    validator(
+      "param",
+      v.object({ projectId: v.string(), repositoryId: v.string() }),
+    ),
+    workspaceAccess.fromProject("projectId"),
+    requireWorkspacePermission({ workspace: ["manage_settings"] }),
+    async (c) => {
+      const params = c.req.valid("param");
+      return c.json(await detachGitHubRepository(params));
+    },
+  )
+  .delete(
     "/project/:projectId",
     describeRoute({
       operationId: "deleteGitHubIntegration",
@@ -337,6 +366,7 @@ const githubIntegration = new Hono<{
       "json",
       v.object({
         projectId: v.string(),
+        repositoryId: v.string(),
       }),
     ),
     async (c, next) => {
@@ -368,7 +398,8 @@ const githubIntegration = new Hono<{
     requireWorkspacePermission({ task: ["create"] }),
     async (c) => {
       const { projectId } = c.req.valid("json");
-      const result = await importIssues(projectId);
+      const { repositoryId } = c.req.valid("json");
+      const result = await importIssues(projectId, repositoryId);
       return c.json(result);
     },
   );

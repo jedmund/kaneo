@@ -48,6 +48,7 @@ export async function handleIssueCommentCreated(
       integration.id,
       "issue",
       issue.number.toString(),
+      integration.repository.id,
     );
 
     if (!existingLink) {

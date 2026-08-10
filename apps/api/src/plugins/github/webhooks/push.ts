@@ -104,6 +104,7 @@ export async function handlePush(payload: PushPayload) {
     await createOrUpdateExternalLink({
       taskId: task.id,
       integrationId: integration.id,
+      integrationRepositoryId: integration.repository.id,
       resourceType: "branch",
       externalId: branchName,
       url: `${repository.html_url}/tree/${branchName}`,

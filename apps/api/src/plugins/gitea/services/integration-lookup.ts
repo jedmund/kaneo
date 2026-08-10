@@ -1,48 +1,73 @@
 import { and, eq } from "drizzle-orm";
 import db from "../../../database";
-import { integrationTable } from "../../../database/schema";
-import type { GiteaConfig } from "../config";
+import { integrationRepositoryTable } from "../../../database/schema";
+import { decryptScmCredential } from "../../../scm/secrets";
 import { normalizeGiteaBaseUrl } from "../config";
 
 export async function findAllIntegrationsByGiteaRepo(
   baseUrl: string,
   owner: string,
   repo: string,
-  integrationId?: string,
+  repositoryOrIntegrationId?: string,
 ) {
   const normalized = normalizeGiteaBaseUrl(baseUrl);
   const conditions = [
-    eq(integrationTable.type, "gitea"),
-    eq(integrationTable.isActive, true),
+    eq(integrationRepositoryTable.provider, "gitea"),
+    eq(integrationRepositoryTable.isActive, true),
+    eq(integrationRepositoryTable.remoteOrigin, normalized),
   ];
-  if (integrationId) {
-    conditions.push(eq(integrationTable.id, integrationId));
-  }
 
-  const integrations = await db.query.integrationTable.findMany({
+  const repositories = await db.query.integrationRepositoryTable.findMany({
     where: and(...conditions),
     with: {
-      project: true,
+      integration: { with: { project: true } },
+      connection: true,
     },
   });
 
-  return integrations.filter((integration) => {
-    try {
-      const config = JSON.parse(integration.config) as GiteaConfig;
+  const fullPath = `${owner}/${repo}`.toLowerCase();
+  return repositories
+    .filter((repository) => {
       const matches =
-        normalizeGiteaBaseUrl(config.baseUrl) === normalized &&
-        config.repositoryOwner === owner &&
-        config.repositoryName === repo;
-      if (integrationId && !matches) {
+        repository.integration.isActive &&
+        repository.fullPath.toLowerCase() === fullPath &&
+        (!repositoryOrIntegrationId ||
+          repository.id === repositoryOrIntegrationId ||
+          repository.integration.id === repositoryOrIntegrationId);
+      if (repositoryOrIntegrationId && !matches) {
         console.warn("[Gitea Webhook] Signed integration repository mismatch", {
-          integrationId,
+          repositoryOrIntegrationId,
         });
       }
       return matches;
-    } catch {
-      return false;
-    }
-  });
+    })
+    .map((repository) => {
+      const path = repository.fullPath.split("/");
+      const repositoryName = path.pop() ?? repository.fullPath;
+      const repositoryOwner = path.join("/");
+      const config = JSON.parse(repository.integration.config) as Record<
+        string,
+        unknown
+      >;
+      const credential = repository.connection
+        ? decryptScmCredential(repository.connection.credentialCiphertext)
+        : undefined;
+
+      return {
+        ...repository.integration,
+        config: JSON.stringify({
+          ...config,
+          baseUrl:
+            repository.connection?.internalUrl ?? repository.remoteOrigin,
+          repositoryOwner,
+          repositoryName,
+          ...(credential?.type === "token"
+            ? { accessToken: credential.accessToken }
+            : {}),
+        }),
+        repository,
+      };
+    });
 }
 
 export function repoOwnerLogin(repo: {

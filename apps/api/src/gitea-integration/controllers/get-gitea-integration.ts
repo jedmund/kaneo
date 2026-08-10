@@ -6,13 +6,10 @@ import {
   type GiteaConfig,
 } from "../../plugins/gitea/config";
 import { normalizeApiServerUrl } from "../../utils/openapi-spec";
-
-function maskToken(token: string): string {
-  if (token.length <= 8) {
-    return "••••••••";
-  }
-  return `${token.slice(0, 4)}••••••${token.slice(-4)}`;
-}
+import {
+  getMaskedGiteaConnectionToken,
+  listAttachedGiteaRepositories,
+} from "../repositories";
 
 async function getGiteaIntegration(
   projectId: string,
@@ -34,6 +31,21 @@ async function getGiteaIntegration(
   const apiBase = normalizeApiServerUrl(
     process.env.KANEO_API_URL || "http://localhost:1337",
   );
+  const repositories = await listAttachedGiteaRepositories(
+    integration.id,
+    apiBase,
+    includeWebhookSecret,
+  );
+  const primaryRepository = repositories[0];
+  const connection = await db.query.integrationRepositoryTable.findFirst({
+    where: (table, { and, eq, isNotNull }) =>
+      and(
+        eq(table.integrationId, integration.id),
+        eq(table.provider, "gitea"),
+        isNotNull(table.connectionId),
+      ),
+    columns: { connectionId: true },
+  });
 
   return {
     id: integration.id,
@@ -41,14 +53,17 @@ async function getGiteaIntegration(
     baseUrl: config.baseUrl,
     repositoryOwner: config.repositoryOwner,
     repositoryName: config.repositoryName,
-    maskedAccessToken: maskToken(config.accessToken),
-    webhookUrl: `${apiBase.replace(/\/$/, "")}/gitea-integration/webhook/${integration.id}`,
-    webhookSecret: includeWebhookSecret ? (config.webhookSecret ?? "") : "",
+    maskedAccessToken: connection?.connectionId
+      ? await getMaskedGiteaConnectionToken(connection.connectionId)
+      : "",
+    webhookUrl: primaryRepository?.webhookUrl,
+    webhookSecret: primaryRepository?.webhookSecret ?? "",
     branchPattern: config.branchPattern || defaultGiteaConfig.branchPattern,
     commentTaskLinkOnGiteaIssue: config.commentTaskLinkOnGiteaIssue !== false,
     isActive: integration.isActive,
     createdAt: integration.createdAt,
     updatedAt: integration.updatedAt,
+    repositories,
   };
 }
 

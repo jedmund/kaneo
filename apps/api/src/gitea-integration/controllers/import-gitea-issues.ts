@@ -3,7 +3,6 @@ import { HTTPException } from "hono/http-exception";
 import db from "../../database";
 import {
   activityTable,
-  integrationTable,
   labelTable,
   projectTable,
   taskTable,
@@ -27,6 +26,7 @@ import {
   extractIssueStatus,
 } from "../../plugins/github/utils/extract-priority";
 import { formatTaskDescriptionFromIssue } from "../../plugins/github/utils/format";
+import { requireAttachedGiteaRepository } from "../repositories";
 
 type ImportResult = {
   imported: number;
@@ -43,6 +43,7 @@ function toPriorityLabels(labels: GiteaLabel[]): LabelLike[] {
 
 export async function importGiteaIssues(
   projectId: string,
+  repositoryId: string,
 ): Promise<ImportResult> {
   const errors: string[] = [];
   let imported = 0;
@@ -57,42 +58,11 @@ export async function importGiteaIssues(
     throw new HTTPException(404, { message: "Project not found" });
   }
 
-  const integration = await db.query.integrationTable.findFirst({
-    where: and(
-      eq(integrationTable.projectId, projectId),
-      eq(integrationTable.type, "gitea"),
-    ),
+  const repository = await requireAttachedGiteaRepository({
+    projectId,
+    repositoryId,
   });
-
-  if (!integration) {
-    throw new HTTPException(404, { message: "Gitea integration not found" });
-  }
-
-  if (!integration.isActive) {
-    throw new HTTPException(400, {
-      message: "Gitea integration is not active",
-    });
-  }
-
-  let config: GiteaConfig;
-  try {
-    config = JSON.parse(integration.config) as GiteaConfig;
-  } catch (error) {
-    const message = error instanceof Error ? error.message : String(error);
-    console.warn("Invalid Gitea integration config JSON", {
-      integrationId: integration.id,
-      error,
-    });
-    throw new HTTPException(400, {
-      message: `Invalid Gitea integration config: ${message}`,
-    });
-  }
-
-  if (!config.accessToken || !config.baseUrl) {
-    throw new HTTPException(400, {
-      message: "Gitea access token or base URL not configured",
-    });
-  }
+  const { integration, config } = repository;
 
   const client = createGiteaClient(config);
 
@@ -125,6 +95,7 @@ export async function importGiteaIssues(
         project.workspaceId,
         config,
         client,
+        repository.binding.id,
       );
 
       if (result === "imported") {
@@ -173,6 +144,7 @@ export async function importGiteaIssues(
         projectId,
         project.slug,
         config,
+        repository.binding.id,
       );
     } catch (error) {
       const errorMessage =
@@ -196,11 +168,13 @@ async function importSingleIssue(
   workspaceId: string,
   config: GiteaConfig,
   client: ReturnType<typeof createGiteaClient>,
+  integrationRepositoryId: string,
 ): Promise<"imported" | "updated" | "skipped"> {
   const existingLink = await findExternalLink(
     integrationId,
     "issue",
     issue.number.toString(),
+    integrationRepositoryId,
   );
 
   const labels = issue.labels ?? [];
@@ -274,6 +248,7 @@ async function importSingleIssue(
   await createExternalLink({
     taskId: createdTask.id,
     integrationId,
+    integrationRepositoryId,
     resourceType: "issue",
     externalId: issue.number.toString(),
     url: issue.html_url,
@@ -459,6 +434,7 @@ async function linkPullRequestToTask(
   projectId: string,
   projectSlug: string,
   config: GiteaConfig,
+  integrationRepositoryId: string,
 ): Promise<void> {
   const taskNumber = extractTaskNumberGitea(
     pr.head.ref,
@@ -482,6 +458,7 @@ async function linkPullRequestToTask(
     integrationId,
     "pull_request",
     pr.number.toString(),
+    integrationRepositoryId,
   );
 
   if (existingLink) {
@@ -491,6 +468,7 @@ async function linkPullRequestToTask(
   await createExternalLink({
     taskId: task.id,
     integrationId,
+    integrationRepositoryId,
     resourceType: "pull_request",
     externalId: pr.number.toString(),
     url: pr.html_url,

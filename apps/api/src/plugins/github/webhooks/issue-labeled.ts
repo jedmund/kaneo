@@ -41,6 +41,7 @@ export async function handleIssueLabeled(payload: IssueLabeledPayload) {
       integration.id,
       "issue",
       issue.number.toString(),
+      integration.repository.id,
     );
 
     if (!existingLink) {

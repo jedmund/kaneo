@@ -5,7 +5,7 @@ export { branchPatterns };
 
 export const giteaConfigSchema = v.object({
   baseUrl: v.pipe(v.string(), v.url()),
-  accessToken: v.pipe(v.string(), v.trim(), v.nonEmpty()),
+  accessToken: v.optional(v.pipe(v.string(), v.trim(), v.nonEmpty())),
   repositoryOwner: v.pipe(v.string(), v.trim(), v.nonEmpty()),
   repositoryName: v.pipe(v.string(), v.trim(), v.nonEmpty()),
   webhookSecret: v.optional(v.string()),

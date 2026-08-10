@@ -31,6 +31,18 @@ type IssueOpenedPayload = {
   };
 };
 
+function repositoryInstallationId(metadata: unknown): number | null {
+  if (!metadata || typeof metadata !== "object" || Array.isArray(metadata)) {
+    return null;
+  }
+  const installationId = (metadata as Record<string, unknown>).installationId;
+  return typeof installationId === "number" &&
+    Number.isSafeInteger(installationId) &&
+    installationId > 0
+    ? installationId
+    : null;
+}
+
 export async function handleIssueOpened(payload: IssueOpenedPayload) {
   const githubApp = getGithubApp();
   if (!githubApp) {
@@ -67,6 +79,7 @@ export async function handleIssueOpened(payload: IssueOpenedPayload) {
       integration.id,
       "issue",
       issue.number.toString(),
+      integration.repository.id,
     );
 
     if (existingLink) {
@@ -118,6 +131,7 @@ export async function handleIssueOpened(payload: IssueOpenedPayload) {
     await createExternalLink({
       taskId: createdTask.id,
       integrationId: integration.id,
+      integrationRepositoryId: integration.repository.id,
       resourceType: "issue",
       externalId: issue.number.toString(),
       url: issue.html_url,
@@ -143,7 +157,11 @@ export async function handleIssueOpened(payload: IssueOpenedPayload) {
     const taskIdentifier = `${project.slug.toUpperCase()}-${createdTask.number}`;
 
     try {
-      let installationId = config.installationId;
+      // Installation credentials belong to the repository binding. The
+      // legacy integration config describes only the first attached repo.
+      let installationId = repositoryInstallationId(
+        integration.repository.metadata,
+      );
       if (!installationId) {
         const { data: installation } =
           await githubApp.octokit.rest.apps.getRepoInstallation({

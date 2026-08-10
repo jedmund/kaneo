@@ -3,6 +3,7 @@ import { and, eq } from "drizzle-orm";
 import db from "../../../database";
 import {
   columnTable,
+  integrationRepositoryTable,
   integrationTable,
   taskTable,
 } from "../../../database/schema";
@@ -123,22 +124,26 @@ export async function findIntegrationByRepo(owner: string, repo: string) {
 }
 
 export async function findAllIntegrationsByRepo(owner: string, repo: string) {
-  const integrations = await db.query.integrationTable.findMany({
+  const repositories = await db.query.integrationRepositoryTable.findMany({
     where: and(
-      eq(integrationTable.type, "github"),
-      eq(integrationTable.isActive, true),
+      eq(integrationRepositoryTable.provider, "github"),
+      eq(integrationRepositoryTable.isActive, true),
     ),
     with: {
-      project: true,
+      integration: { with: { project: true } },
     },
   });
 
-  return integrations.filter((integration) => {
-    try {
-      const config = JSON.parse(integration.config);
-      return config.repositoryOwner === owner && config.repositoryName === repo;
-    } catch {
-      return false;
-    }
-  });
+  const fullPath = `${owner}/${repo}`.toLowerCase();
+
+  return repositories
+    .filter(
+      (repository) =>
+        repository.integration.isActive &&
+        repository.fullPath.toLowerCase() === fullPath,
+    )
+    .map((repository) => ({
+      ...repository.integration,
+      repository,
+    }));
 }

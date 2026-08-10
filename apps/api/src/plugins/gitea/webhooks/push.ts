@@ -119,6 +119,7 @@ export async function handleGiteaPush(
     await createOrUpdateExternalLink({
       taskId: task.id,
       integrationId: integration.id,
+      integrationRepositoryId: integration.repository.id,
       resourceType: "branch",
       externalId: branchName,
       url: treeUrl,
