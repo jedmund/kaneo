@@ -25,8 +25,8 @@ import {
 } from "@/components/ui/alert-dialog";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Field, FieldDescription, FieldLabel } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import {
   Select,
   SelectContent,
@@ -34,7 +34,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Separator } from "@/components/ui/separator";
 import {
   attachGitLabRepository,
   beginGitLabOAuthConnection,
@@ -54,6 +53,8 @@ type PendingRemoval =
   | { type: "connection"; id: string; label: string }
   | { type: "repository"; id: string; label: string }
   | null;
+
+type SelectOption = { label: string; value: string };
 
 export function GitLabIntegrationSettings({
   projectId,
@@ -109,8 +110,34 @@ export function GitLabIntegrationSettings({
       ),
     [repositories],
   );
-  const availableProjects = (projectsQuery.data?.projects ?? []).filter(
-    (project) => !attachedProviderIds.has(String(project.id)),
+  const availableProjects = useMemo(
+    () =>
+      (projectsQuery.data?.projects ?? []).filter(
+        (project) => !attachedProviderIds.has(String(project.id)),
+      ),
+    [attachedProviderIds, projectsQuery.data?.projects],
+  );
+  const connectionOptions = useMemo<SelectOption[]>(
+    () =>
+      connections.map((connection) => ({
+        label: connection.name,
+        value: connection.id,
+      })),
+    [connections],
+  );
+  const projectOptions = useMemo<SelectOption[]>(
+    () =>
+      availableProjects.map((project) => ({
+        label: project.path_with_namespace,
+        value: String(project.id),
+      })),
+    [availableProjects],
+  );
+  const selectedConnection = connectionOptions.find(
+    (option) => option.value === selectedConnectionId,
+  );
+  const selectedProject = projectOptions.find(
+    (option) => option.value === selectedProjectId,
   );
 
   useEffect(() => {
@@ -205,7 +232,6 @@ export function GitLabIntegrationSettings({
       );
     }
   };
-
   const createConnection = useMutation({
     mutationFn: createGitLabTokenConnection,
     onSuccess: async () => {
@@ -285,6 +311,7 @@ export function GitLabIntegrationSettings({
         projectId,
         repositoryId,
       });
+      await queryClient.invalidateQueries({ queryKey: ["tasks"] });
       toast.success(
         t("settings:gitlabIntegration.toast.imported", {
           imported: result.imported,
@@ -336,9 +363,9 @@ export function GitLabIntegrationSettings({
   }
 
   return (
-    <div className="space-y-6">
-      <section className="space-y-3">
-        <div>
+    <div className="flex flex-col gap-4">
+      <section className="flex flex-col gap-4 rounded-md border border-border bg-sidebar p-4">
+        <div className="flex flex-col gap-0.5">
           <h3 className="font-medium text-sm">
             {t("settings:gitlabIntegration.connectionsTitle")}
           </h3>
@@ -348,35 +375,42 @@ export function GitLabIntegrationSettings({
         </div>
 
         {connections.length > 0 && (
-          <div className="space-y-2">
+          <div className="flex flex-col gap-2">
             {connections.map((connection) => (
               <div
-                className="rounded-lg border border-border p-3"
+                className="flex flex-col gap-3 rounded-md border border-border bg-background p-3"
                 key={connection.id}
               >
-                <div className="flex flex-wrap items-start justify-between gap-3">
+                <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                   <div className="min-w-0">
                     <div className="flex flex-wrap items-center gap-2">
                       <span className="font-medium text-sm">
                         {connection.name}
                       </span>
                       <Badge
+                        className="capitalize"
                         variant={
                           connection.status === "active" ? "success" : "warning"
                         }
                       >
                         {connection.status}
                       </Badge>
-                      <Badge variant="outline">{connection.authType}</Badge>
+                      <Badge className="capitalize" variant="outline">
+                        {connection.authType}
+                      </Badge>
                     </div>
                     <a
-                      className="mt-1 inline-flex items-center gap-1 text-muted-foreground text-xs hover:text-foreground"
+                      aria-label={`${connection.name}: ${connection.publicUrl}`}
+                      className="mt-1 inline-flex max-w-full items-center gap-1 text-muted-foreground text-xs transition-colors hover:text-foreground"
                       href={connection.publicUrl}
                       rel="noreferrer"
                       target="_blank"
                     >
-                      {connection.publicUrl}
-                      <ExternalLink className="size-3" />
+                      <span className="truncate">{connection.publicUrl}</span>
+                      <ExternalLink
+                        aria-hidden="true"
+                        className="size-3 shrink-0"
+                      />
                     </a>
                     <p className="mt-1 text-muted-foreground text-xs">
                       {connection.gitlabUsername
@@ -389,49 +423,73 @@ export function GitLabIntegrationSettings({
                       {t("settings:gitlabIntegration.repositoriesCount")}
                     </p>
                     {connection.statusMessage && (
-                      <p className="mt-1 text-warning text-xs">
+                      <p className="mt-1 text-warning-foreground text-xs">
                         {connection.statusMessage}
                       </p>
                     )}
                   </div>
-                  <Button
-                    aria-label={t(
-                      "settings:gitlabIntegration.removeConnection",
+                  <div className="flex shrink-0 items-center gap-1 self-end sm:self-start">
+                    {connection.authType === "oauth" && (
+                      <Button
+                        disabled={oauthPendingId !== null}
+                        loading={oauthPendingId === connection.id}
+                        onClick={() => startOAuth(connection)}
+                        size="sm"
+                        variant="outline"
+                      >
+                        <RefreshCw aria-hidden="true" className="size-3" />
+                        {t("settings:gitlabIntegration.reauthorizeOAuth")}
+                      </Button>
                     )}
-                    disabled={connection.attachedRepositoryCount > 0}
-                    onClick={() =>
-                      setPendingRemoval({
-                        type: "connection",
-                        id: connection.id,
-                        label: connection.name,
-                      })
-                    }
-                    size="icon"
-                    variant="ghost"
-                  >
-                    <Trash2 className="size-4" />
-                  </Button>
+                    <Button
+                      aria-label={t(
+                        "settings:gitlabIntegration.removeConnection",
+                      )}
+                      disabled={connection.attachedRepositoryCount > 0}
+                      onClick={() =>
+                        setPendingRemoval({
+                          type: "connection",
+                          id: connection.id,
+                          label: connection.name,
+                        })
+                      }
+                      size="icon-sm"
+                      variant="ghost"
+                    >
+                      <Trash2 aria-hidden="true" className="size-3" />
+                    </Button>
+                  </div>
                 </div>
 
                 {connection.authType === "token" && (
-                  <div className="mt-3 flex gap-2">
-                    <Input
-                      aria-label={t("settings:gitlabIntegration.newToken")}
-                      autoComplete="new-password"
-                      onChange={(event) =>
-                        setRotationTokens((current) => ({
-                          ...current,
-                          [connection.id]: event.target.value,
-                        }))
-                      }
-                      placeholder={t("settings:gitlabIntegration.newToken")}
-                      type="password"
-                      value={rotationTokens[connection.id] ?? ""}
-                    />
+                  <div className="grid gap-2 border-border border-t pt-3 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-end">
+                    <Field>
+                      <FieldLabel htmlFor={`gitlab-token-${connection.id}`}>
+                        {t("settings:gitlabIntegration.newToken")}
+                      </FieldLabel>
+                      <Input
+                        autoComplete="new-password"
+                        id={`gitlab-token-${connection.id}`}
+                        onChange={(event) =>
+                          setRotationTokens((current) => ({
+                            ...current,
+                            [connection.id]: event.target.value,
+                          }))
+                        }
+                        placeholder={t("settings:gitlabIntegration.newToken")}
+                        type="password"
+                        value={rotationTokens[connection.id] ?? ""}
+                      />
+                    </Field>
                     <Button
                       disabled={
                         !rotationTokens[connection.id] ||
                         rotateConnection.isPending
+                      }
+                      loading={
+                        rotateConnection.isPending &&
+                        rotateConnection.variables?.connectionId ===
+                          connection.id
                       }
                       onClick={() =>
                         rotateConnection.mutate({
@@ -442,24 +500,8 @@ export function GitLabIntegrationSettings({
                       }
                       variant="outline"
                     >
-                      <RefreshCw className="size-4" />
+                      <RefreshCw aria-hidden="true" className="size-4" />
                       {t("settings:gitlabIntegration.rotate")}
-                    </Button>
-                  </div>
-                )}
-                {connection.authType === "oauth" && (
-                  <div className="mt-3">
-                    <Button
-                      disabled={oauthPendingId !== null}
-                      onClick={() => startOAuth(connection)}
-                      variant="outline"
-                    >
-                      {oauthPendingId === connection.id ? (
-                        <Loader2 className="size-4 animate-spin" />
-                      ) : (
-                        <RefreshCw className="size-4" />
-                      )}
-                      {t("settings:gitlabIntegration.reauthorizeOAuth")}
                     </Button>
                   </div>
                 )}
@@ -470,16 +512,16 @@ export function GitLabIntegrationSettings({
 
         {oauthAvailability?.enabled && oauthAvailability.publicUrl && (
           <form
-            className="flex flex-col gap-3 rounded-lg border border-border p-3 sm:flex-row sm:items-end"
+            className="flex flex-col gap-3 rounded-md border border-border bg-background p-3"
             onSubmit={(event) => {
               event.preventDefault();
               void startOAuth();
             }}
           >
-            <div className="min-w-0 flex-1 space-y-1.5">
-              <Label htmlFor="gitlab-oauth-connection-name">
+            <Field>
+              <FieldLabel htmlFor="gitlab-oauth-connection-name">
                 {t("settings:gitlabIntegration.oauthConnectionName")}
-              </Label>
+              </FieldLabel>
               <Input
                 id="gitlab-oauth-connection-name"
                 onChange={(event) => setOauthName(event.target.value)}
@@ -488,59 +530,60 @@ export function GitLabIntegrationSettings({
                 )}
                 value={oauthName}
               />
-              <p className="text-muted-foreground text-xs">
+              <FieldDescription>
                 {t("settings:gitlabIntegration.oauthHint", {
                   url: oauthAvailability.publicUrl,
                 })}
-              </p>
+              </FieldDescription>
+            </Field>
+            <div className="flex justify-end">
+              <Button
+                disabled={!oauthName.trim() || oauthPendingId !== null}
+                loading={oauthPendingId === "new"}
+                type="submit"
+              >
+                <ShieldCheck aria-hidden="true" className="size-4" />
+                {t("settings:gitlabIntegration.connectOAuth")}
+              </Button>
             </div>
-            <Button
-              disabled={!oauthName.trim() || oauthPendingId !== null}
-              type="submit"
-            >
-              {oauthPendingId === "new" ? (
-                <Loader2 className="size-4 animate-spin" />
-              ) : (
-                <ShieldCheck className="size-4" />
-              )}
-              {t("settings:gitlabIntegration.connectOAuth")}
-            </Button>
           </form>
         )}
 
         <form
-          className="grid gap-3 rounded-lg border border-dashed border-border p-3 sm:grid-cols-2"
+          className="flex flex-col gap-3 rounded-md border border-border bg-background p-3"
           onSubmit={handleCreateConnection}
         >
-          <div className="space-y-1.5">
-            <Label htmlFor="gitlab-connection-name">
-              {t("settings:gitlabIntegration.connectionName")}
-            </Label>
-            <Input
-              id="gitlab-connection-name"
-              onChange={(event) => setName(event.target.value)}
-              placeholder={t(
-                "settings:gitlabIntegration.connectionNamePlaceholder",
-              )}
-              value={name}
-            />
+          <div className="grid gap-3 sm:grid-cols-2">
+            <Field>
+              <FieldLabel htmlFor="gitlab-connection-name">
+                {t("settings:gitlabIntegration.connectionName")}
+              </FieldLabel>
+              <Input
+                id="gitlab-connection-name"
+                onChange={(event) => setName(event.target.value)}
+                placeholder={t(
+                  "settings:gitlabIntegration.connectionNamePlaceholder",
+                )}
+                value={name}
+              />
+            </Field>
+            <Field>
+              <FieldLabel htmlFor="gitlab-url">
+                {t("settings:gitlabIntegration.url")}
+              </FieldLabel>
+              <Input
+                id="gitlab-url"
+                onChange={(event) => setPublicUrl(event.target.value)}
+                placeholder="https://gitlab.example.com"
+                type="url"
+                value={publicUrl}
+              />
+            </Field>
           </div>
-          <div className="space-y-1.5">
-            <Label htmlFor="gitlab-url">
-              {t("settings:gitlabIntegration.url")}
-            </Label>
-            <Input
-              id="gitlab-url"
-              onChange={(event) => setPublicUrl(event.target.value)}
-              placeholder="https://gitlab.example.com"
-              type="url"
-              value={publicUrl}
-            />
-          </div>
-          <div className="space-y-1.5 sm:col-span-2">
-            <Label htmlFor="gitlab-token">
+          <Field>
+            <FieldLabel htmlFor="gitlab-token">
               {t("settings:gitlabIntegration.token")}
-            </Label>
+            </FieldLabel>
             <Input
               autoComplete="new-password"
               id="gitlab-token"
@@ -549,31 +592,25 @@ export function GitLabIntegrationSettings({
               type="password"
               value={accessToken}
             />
-            <p className="text-muted-foreground text-xs">
+            <FieldDescription>
               {t("settings:gitlabIntegration.tokenHint")}
-            </p>
-          </div>
-          <div className="sm:col-span-2">
+            </FieldDescription>
+          </Field>
+          <div className="flex justify-end">
             <Button
-              disabled={
-                createConnection.isPending ||
-                !name.trim() ||
-                !publicUrl.trim() ||
-                !accessToken
-              }
+              disabled={!name.trim() || !publicUrl.trim() || !accessToken}
+              loading={createConnection.isPending}
               type="submit"
             >
-              <KeyRound className="size-4" />
+              <KeyRound aria-hidden="true" className="size-4" />
               {t("settings:gitlabIntegration.addConnection")}
             </Button>
           </div>
         </form>
       </section>
 
-      <Separator />
-
-      <section className="space-y-3">
-        <div>
+      <section className="flex flex-col gap-4 rounded-md border border-border bg-sidebar p-4">
+        <div className="flex flex-col gap-0.5">
           <h3 className="font-medium text-sm">
             {t("settings:gitlabIntegration.repositoriesTitle")}
           </h3>
@@ -583,28 +620,32 @@ export function GitLabIntegrationSettings({
         </div>
 
         {repositories.length === 0 ? (
-          <p className="rounded-lg border border-dashed p-4 text-center text-muted-foreground text-sm">
+          <p className="rounded-md border border-border border-dashed bg-background/50 p-4 text-center text-muted-foreground text-sm">
             {t("settings:gitlabIntegration.noRepositories")}
           </p>
         ) : (
-          <div className="space-y-2">
+          <div className="flex flex-col gap-2">
             {repositories.map((repository) => (
               <div
-                className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-border p-3"
+                className="flex flex-col gap-3 rounded-md border border-border bg-background p-3 sm:flex-row sm:items-center sm:justify-between"
                 key={repository.id}
               >
                 <div className="min-w-0">
                   <a
-                    className="inline-flex items-center gap-1 font-medium text-sm hover:underline"
+                    aria-label={repository.fullPath}
+                    className="inline-flex max-w-full items-center gap-1.5 font-medium text-sm transition-colors hover:text-primary"
                     href={repository.webUrl}
                     rel="noreferrer"
                     target="_blank"
                   >
-                    <GitBranch className="size-4" />
-                    {repository.fullPath}
-                    <ExternalLink className="size-3" />
+                    <GitBranch aria-hidden="true" className="size-4 shrink-0" />
+                    <span className="truncate">{repository.fullPath}</span>
+                    <ExternalLink
+                      aria-hidden="true"
+                      className="size-3 shrink-0"
+                    />
                   </a>
-                  <div className="mt-1 flex gap-2">
+                  <div className="mt-1 flex flex-wrap items-center gap-2">
                     <Badge
                       variant={
                         repository.webhookConfigured ? "success" : "warning"
@@ -621,22 +662,19 @@ export function GitLabIntegrationSettings({
                     )}
                   </div>
                 </div>
-                <div className="flex gap-2">
+                <div className="flex shrink-0 items-center justify-end gap-1">
                   <Button
-                    disabled={importingRepositoryId === repository.id}
+                    loading={importingRepositoryId === repository.id}
                     onClick={() => handleImport(repository.id)}
                     size="sm"
                     variant="outline"
                   >
-                    {importingRepositoryId === repository.id ? (
-                      <Loader2 className="size-4 animate-spin" />
-                    ) : (
-                      <Import className="size-4" />
-                    )}
+                    <Import aria-hidden="true" className="size-3" />
                     {t("settings:gitlabIntegration.import")}
                   </Button>
                   <Button
-                    aria-label={t("settings:gitlabIntegration.detach")}
+                    aria-label={`${t("settings:gitlabIntegration.detach")} ${repository.fullPath}`}
+                    disabled={detachRepository.isPending}
                     onClick={() =>
                       setPendingRemoval({
                         type: "repository",
@@ -647,7 +685,7 @@ export function GitLabIntegrationSettings({
                     size="icon-sm"
                     variant="ghost"
                   >
-                    <Unlink className="size-4" />
+                    <Unlink aria-hidden="true" className="size-3" />
                   </Button>
                 </div>
               </div>
@@ -656,42 +694,42 @@ export function GitLabIntegrationSettings({
         )}
 
         {connections.length > 0 && (
-          <div className="grid gap-3 rounded-lg border border-dashed border-border p-3 sm:grid-cols-[minmax(0,1fr)_minmax(0,1.5fr)_auto] sm:items-end">
-            <div className="space-y-1.5">
-              <Label>{t("settings:gitlabIntegration.connection")}</Label>
+          <div className="grid gap-3 rounded-md border border-border bg-background p-3 sm:grid-cols-[minmax(0,1fr)_minmax(0,1.5fr)_auto] sm:items-end">
+            <Field>
+              <FieldLabel>
+                {t("settings:gitlabIntegration.connection")}
+              </FieldLabel>
               <Select
-                items={connections.map((connection) => ({
-                  label: connection.name,
-                  value: connection.id,
-                }))}
-                onValueChange={(value) => {
-                  setSelectedConnectionId(value ?? "");
+                itemToStringValue={(option) => option.label}
+                items={connectionOptions}
+                onValueChange={(option) => {
+                  setSelectedConnectionId(option?.value ?? "");
                   setSelectedProjectId("");
                 }}
-                value={selectedConnectionId}
+                value={selectedConnection}
               >
                 <SelectTrigger>
-                  <SelectValue />
+                  <SelectValue>{selectedConnection?.label}</SelectValue>
                 </SelectTrigger>
                 <SelectContent>
-                  {connections.map((connection) => (
-                    <SelectItem key={connection.id} value={connection.id}>
-                      {connection.name}
+                  {connectionOptions.map((option) => (
+                    <SelectItem key={option.value} value={option}>
+                      {option.label}
                     </SelectItem>
                   ))}
                 </SelectContent>
               </Select>
-            </div>
-            <div className="space-y-1.5">
-              <Label>{t("settings:gitlabIntegration.project")}</Label>
+            </Field>
+            <Field>
+              <FieldLabel>{t("settings:gitlabIntegration.project")}</FieldLabel>
               <Select
                 disabled={projectsQuery.isLoading}
-                items={availableProjects.map((project) => ({
-                  label: project.path_with_namespace,
-                  value: String(project.id),
-                }))}
-                onValueChange={(value) => setSelectedProjectId(value ?? "")}
-                value={selectedProjectId}
+                itemToStringValue={(option) => option.label}
+                items={projectOptions}
+                onValueChange={(option) =>
+                  setSelectedProjectId(option?.value ?? "")
+                }
+                value={selectedProject}
               >
                 <SelectTrigger>
                   <SelectValue
@@ -700,22 +738,25 @@ export function GitLabIntegrationSettings({
                         ? t("settings:gitlabIntegration.loadingProjects")
                         : t("settings:gitlabIntegration.selectProject")
                     }
-                  />
+                  >
+                    {selectedProject?.label}
+                  </SelectValue>
                 </SelectTrigger>
                 <SelectContent>
-                  {availableProjects.map((project) => (
-                    <SelectItem key={project.id} value={String(project.id)}>
-                      {project.path_with_namespace}
+                  {projectOptions.map((option) => (
+                    <SelectItem key={option.value} value={option}>
+                      {option.label}
                     </SelectItem>
                   ))}
                 </SelectContent>
               </Select>
-            </div>
+            </Field>
             <Button
-              disabled={!selectedProjectId || attachRepository.isPending}
+              disabled={!selectedProjectId}
+              loading={attachRepository.isPending}
               onClick={handleAttach}
             >
-              <Link className="size-4" />
+              <Link aria-hidden="true" className="size-4" />
               {t("settings:gitlabIntegration.attach")}
             </Button>
           </div>
