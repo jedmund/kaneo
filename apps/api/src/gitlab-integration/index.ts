@@ -12,6 +12,7 @@ import {
   listGitLabConnections,
   rotateTokenConnection,
 } from "./connections";
+import { importGitLabIssues } from "./imports";
 import {
   attachGitLabRepository,
   detachGitLabRepository,
@@ -58,6 +59,14 @@ const repositorySchema = v.object({
   isActive: v.boolean(),
   createdAt: v.string(),
   updatedAt: v.string(),
+});
+
+const importResultSchema = v.object({
+  imported: v.number(),
+  updated: v.number(),
+  skipped: v.number(),
+  mergeRequestsLinked: v.number(),
+  errors: v.optional(v.array(v.string())),
 });
 
 const routeVariables = {
@@ -151,6 +160,33 @@ const gitlabIntegration = new Hono<typeof routeVariables>()
       const params = c.req.valid("param");
       await detachGitLabRepository(params);
       return c.json({ success: true });
+    },
+  )
+  .post(
+    "/project/:projectId/repositories/:repositoryId/import-issues",
+    describeRoute({
+      operationId: "importGitLabIssues",
+      tags: ["GitLab"],
+      description:
+        "Import open issues, notes, labels, and merge requests from one attached GitLab repository",
+      responses: {
+        200: {
+          description: "GitLab import result",
+          content: {
+            "application/json": { schema: resolver(importResultSchema) },
+          },
+        },
+      },
+    }),
+    validator(
+      "param",
+      v.object({ projectId: v.string(), repositoryId: v.string() }),
+    ),
+    workspaceAccess.fromProject("projectId"),
+    requireWorkspacePermission({ task: ["create"] }),
+    async (c) => {
+      const { projectId, repositoryId } = c.req.valid("param");
+      return c.json(await importGitLabIssues(projectId, repositoryId));
     },
   )
   .get(

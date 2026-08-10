@@ -174,7 +174,7 @@ function managedValues(labels: GitLabLabelPayload[] | undefined) {
   };
 }
 
-function stripKaneoTaskMarker(description: string | null | undefined) {
+export function stripKaneoTaskMarker(description: string | null | undefined) {
   const value = description ?? "";
   return value
     .replace(/\n*---\n<sub>Task: [^<]+<\/sub>\s*$/u, "")
