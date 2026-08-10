@@ -9,6 +9,7 @@
 		"ignoreUnknown": false,
 		"includes": [
 			"**",
+			"!**/.pnpm-store",
 			"!**/coverage",
 			"!**/tsconfig*.json",
 			"!**/routeTree.gen.ts",
