@@ -11,11 +11,8 @@ import {
   normalizeGitLabUrl,
   resolveGitLabInternalUrl,
 } from "../plugins/gitlab/client";
-import {
-  decryptScmCredential,
-  encryptScmCredential,
-  maskScmToken,
-} from "../scm/secrets";
+import { encryptScmCredential, maskScmToken } from "../scm/secrets";
+import { getValidGitLabCredential, revokeGitLabOAuthCredential } from "./oauth";
 
 type GitLabConnectionRow = typeof scmConnectionTable.$inferSelect;
 
@@ -95,8 +92,10 @@ function throwConnectionError(error: unknown): never {
   throw new HTTPException(400, { message: "Unable to verify GitLab access" });
 }
 
-export function getGitLabClientForConnection(connection: GitLabConnectionRow) {
-  const credential = decryptScmCredential(connection.credentialCiphertext);
+export async function getGitLabClientForConnection(
+  connection: GitLabConnectionRow,
+) {
+  const credential = await getValidGitLabCredential(connection);
   return createGitLabClient({
     publicUrl: connection.publicUrl,
     internalUrl: connection.internalUrl,
@@ -278,8 +277,9 @@ export async function listConnectionProjects(
 ) {
   const connection = await requireGitLabConnection(workspaceId, connectionId);
   try {
-    const projects =
-      await getGitLabClientForConnection(connection).listMaintainedProjects();
+    const projects = await (
+      await getGitLabClientForConnection(connection)
+    ).listMaintainedProjects();
     if (connection.status !== "active" || connection.statusMessage) {
       await db
         .update(scmConnectionTable)
@@ -313,6 +313,13 @@ export async function deleteGitLabConnection(
     throw new HTTPException(409, {
       message: "Detach all repositories before deleting this connection",
     });
+  }
+  if (connection.authType === "oauth") {
+    try {
+      await revokeGitLabOAuthCredential(connection);
+    } catch {
+      // Local deletion must remain possible after remote revocation or expiry.
+    }
   }
   await db
     .delete(scmConnectionTable)

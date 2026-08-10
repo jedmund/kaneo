@@ -36,6 +36,7 @@ import githubIntegration, {
   handleGithubWebhookRoute,
 } from "./github-integration";
 import gitlabIntegration, {
+  handleGitLabOAuthCallbackRoute,
   handleGitLabWebhookRoute,
 } from "./gitlab-integration";
 import getInstanceStatus from "./instance/controllers/get-instance-status";
@@ -261,6 +262,8 @@ export function createApp() {
     "/gitlab-integration/webhook/:repositoryId",
     handleGitLabWebhookRoute,
   );
+
+  api.get("/gitlab-integration/oauth/callback", handleGitLabOAuthCallbackRoute);
 
   const invitationPublicApi = api.get("/invitation/public/:id", async (c) => {
     const { id } = c.req.param();

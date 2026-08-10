@@ -887,7 +887,7 @@ export const scmOAuthStateTable = pgTable(
     connectionId: text("connection_id").references(
       () => scmConnectionTable.id,
       {
-        onDelete: "set null",
+        onDelete: "cascade",
         onUpdate: "cascade",
       },
     ),

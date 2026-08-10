@@ -2,6 +2,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   createGitLabClient,
   gitlabFetch,
+  gitlabOAuthFetch,
   normalizeGitLabUrl,
   resolveGitLabInternalUrl,
 } from "../../../../apps/api/src/plugins/gitlab/client";
@@ -100,6 +101,65 @@ describe("GitLab URL routing", () => {
         headers: expect.objectContaining({ "PRIVATE-TOKEN": "glpat-secret" }),
       }),
     );
+  });
+
+  it("posts OAuth exchanges through the configured internal origin", async () => {
+    process.env.GITLAB_PUBLIC_URL = "https://git.atelier.house";
+    process.env.GITLAB_INTERNAL_URL = "http://gitlab";
+    const fetchMock = vi.spyOn(globalThis, "fetch").mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          access_token: "access",
+          refresh_token: "refresh",
+          expires_in: 7200,
+        }),
+        { status: 200 },
+      ),
+    );
+    const form = new URLSearchParams({
+      grant_type: "authorization_code",
+      client_secret: "secret",
+    });
+
+    await expect(
+      gitlabOAuthFetch(
+        {
+          publicUrl: "https://git.atelier.house",
+          internalUrl: "http://gitlab",
+        },
+        "/oauth/token",
+        form,
+      ),
+    ).resolves.toMatchObject({ access_token: "access" });
+    expect(fetchMock).toHaveBeenCalledWith(
+      "http://gitlab/oauth/token",
+      expect.objectContaining({
+        method: "POST",
+        body: form,
+        redirect: "manual",
+      }),
+    );
+  });
+
+  it("does not expose OAuth response bodies in errors", async () => {
+    process.env.GITLAB_PUBLIC_URL = "https://git.atelier.house";
+    process.env.GITLAB_INTERNAL_URL = "http://gitlab";
+    vi.spyOn(globalThis, "fetch").mockResolvedValue(
+      new Response('sensitive error containing token "oauth-secret"', {
+        status: 401,
+      }),
+    );
+
+    await expect(
+      gitlabOAuthFetch(
+        {
+          publicUrl: "https://git.atelier.house",
+          internalUrl: "http://gitlab",
+        },
+        "/oauth/token",
+        new URLSearchParams(),
+      ),
+    ).rejects.not.toThrow(/oauth-secret/);
   });
 });
 

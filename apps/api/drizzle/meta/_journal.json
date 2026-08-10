@@ -288,6 +288,13 @@
 			"when": 1786333433848,
 			"tag": "0040_fine_luminals",
 			"breakpoints": true
+		},
+		{
+			"idx": 41,
+			"version": "7",
+			"when": 1786333851082,
+			"tag": "0041_jittery_black_cat",
+			"breakpoints": true
 		}
 	]
 }
