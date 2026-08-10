@@ -644,7 +644,9 @@
 			"genericWebhookSectionTitle": "Општи webhooks",
 			"genericWebhookSectionSubtitle": "Испрати настани за задачи на проектот до кој било HTTP endpoint како JSON.",
 			"slackSectionTitle": "Slack интеграција",
-			"slackSectionSubtitle": "Испрати ажурирања за задачи на проектот во Slack канал преку дојдовен webhook."
+			"slackSectionSubtitle": "Испрати ажурирања за задачи на проектот во Slack канал преку дојдовен webhook.",
+			"gitlabSectionSubtitle": "Connect multiple GitLab projects with signed webhooks and two-way issue sync.",
+			"gitlabSectionTitle": "GitLab Integration"
 		},
 		"projectVisibility": {
 			"pageTitle": "Видливост на проект",
@@ -1223,6 +1225,46 @@
 			"updateError": "Неуспешно ажурирање на ознака",
 			"deleteError": "Неуспешно бришење на ознака",
 			"nameRequired": "Името на ознаката е задолжително"
+		},
+		"gitlabIntegration": {
+			"addConnection": "Add connection",
+			"attach": "Attach",
+			"connection": "Connection",
+			"connectionName": "Connection name",
+			"connectionNamePlaceholder": "Atelier GitLab",
+			"connectionsHint": "Credentials are encrypted and shared by attached repositories in this workspace.",
+			"connectionsTitle": "Workspace connections",
+			"detach": "Detach",
+			"detachTitle": "Detach GitLab repository?",
+			"import": "Import",
+			"loading": "Loading GitLab settings…",
+			"loadingProjects": "Loading projects…",
+			"newToken": "New access token",
+			"noRepositories": "No GitLab repositories attached to this project.",
+			"project": "GitLab project",
+			"removeConnection": "Remove GitLab connection",
+			"removeConnectionTitle": "Remove GitLab connection?",
+			"removeDescription": "This removes {{name}} from Kaneo. Existing linked tasks remain in Kaneo.",
+			"repositoriesCount": "repositories",
+			"repositoriesHint": "Each task can target one attached repository; the default remains Kaneo only.",
+			"repositoriesTitle": "Attached repositories",
+			"rotate": "Rotate",
+			"selectProject": "Select a Maintainer project",
+			"toast": {
+				"connectionCreated": "GitLab connection added",
+				"connectionRemoved": "GitLab connection removed",
+				"imported": "Imported {{imported}}, updated {{updated}}, and linked {{mergeRequests}} merge requests",
+				"importFailed": "Failed to import GitLab issues",
+				"repositoryAttached": "GitLab repository attached and webhook provisioned",
+				"repositoryDetached": "GitLab repository detached",
+				"tokenRotated": "GitLab token rotated"
+			},
+			"token": "Group access token",
+			"tokenHint": "Use a Maintainer group access token with API access so Kaneo can provision project webhooks.",
+			"tokenPlaceholder": "Paste a token with api scope",
+			"url": "Public GitLab URL",
+			"webhookMissing": "Webhook missing",
+			"webhookReady": "Webhook ready"
 		}
 	},
 	"navigation": {

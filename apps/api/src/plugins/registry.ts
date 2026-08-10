@@ -6,6 +6,7 @@ import {
   scmSyncJobTable,
 } from "../database/schema";
 import { subscribeToEvent } from "../events";
+import { decryptScmCredential } from "../scm/secrets";
 import type {
   IntegrationPlugin,
   PluginContext,
@@ -258,7 +259,9 @@ async function getActiveIntegrations(projectId: string, taskId?: string) {
 
   const links = await db.query.externalLinkTable.findMany({
     where: eq(externalLinkTable.taskId, taskId),
-    with: { integrationRepository: true },
+    with: {
+      integrationRepository: { with: { connection: true } },
+    },
   });
   const linkedIntegrationIds = Array.from(
     new Set(links.map((link) => link.integrationId)),
@@ -330,10 +333,25 @@ function createContext(integration: {
     webUrl: string;
     defaultBranch: string | null;
     metadata: unknown;
+    connection?: {
+      id: string;
+      provider: string;
+      authType: string;
+      publicUrl: string;
+      internalUrl: string;
+      credentialCiphertext: string;
+    } | null;
   };
 }): PluginContext {
   const config = JSON.parse(integration.config) as Record<string, unknown>;
   const repository = integration.repository;
+
+  if (
+    repository?.connection &&
+    repository.connection.provider !== repository.provider
+  ) {
+    throw new Error("SCM repository and connection providers do not match");
+  }
 
   if (repository) {
     const pathParts = repository.fullPath.split("/");
@@ -363,6 +381,19 @@ function createContext(integration: {
     projectId: integration.projectId,
     config,
     repository,
+    ...(repository?.connection
+      ? {
+          connection: {
+            id: repository.connection.id,
+            authType: repository.connection.authType,
+            publicUrl: repository.connection.publicUrl,
+            internalUrl: repository.connection.internalUrl,
+            credential: decryptScmCredential(
+              repository.connection.credentialCiphertext,
+            ),
+          },
+        }
+      : {}),
   };
 }
 
@@ -481,7 +512,9 @@ export async function processScmSyncJob(jobId: string): Promise<boolean> {
     const job = await db.query.scmSyncJobTable.findFirst({
       where: eq(scmSyncJobTable.id, jobId),
       with: {
-        integrationRepository: { with: { integration: true } },
+        integrationRepository: {
+          with: { integration: true, connection: true },
+        },
       },
     });
 

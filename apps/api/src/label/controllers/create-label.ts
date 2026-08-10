@@ -5,6 +5,7 @@ import { labelTable, projectTable, taskTable } from "../../database/schema";
 import { publishEvent } from "../../events";
 import { syncLabelToGitea } from "../../plugins/gitea/utils/sync-label-to-gitea";
 import { syncLabelToGitHub } from "../../plugins/github/utils/sync-label-to-github";
+import { syncLabelToGitLab } from "../../plugins/gitlab/utils/sync-label-to-gitlab";
 
 async function createLabel(
   name: string,
@@ -61,6 +62,9 @@ async function createLabel(
       });
       syncLabelToGitea(taskId, name, color).catch((error) => {
         console.error("Failed to sync label to Gitea:", error);
+      });
+      syncLabelToGitLab(taskId, name, color).catch((error) => {
+        console.error("Failed to sync label to GitLab:", error);
       });
 
       await publishEvent("task.label_created", {

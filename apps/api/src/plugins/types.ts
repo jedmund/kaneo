@@ -14,6 +14,20 @@ export type PluginContext = {
     defaultBranch: string | null;
     metadata: unknown;
   };
+  connection?: {
+    id: string;
+    authType: string;
+    publicUrl: string;
+    internalUrl: string;
+    credential:
+      | { type: "token"; accessToken: string }
+      | {
+          type: "oauth";
+          accessToken: string;
+          refreshToken: string;
+          expiresAt: string;
+        };
+  };
 };
 
 export type TaskCreatedEvent = {

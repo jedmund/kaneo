@@ -1012,6 +1012,49 @@ export const scmSyncJobTable = pgTable(
   ],
 );
 
+/** Durable Standard Webhooks delivery ledger for replay-safe SCM handlers. */
+export const scmWebhookDeliveryTable = pgTable(
+  "scm_webhook_delivery",
+  {
+    id: text("id")
+      .$defaultFn(() => createId())
+      .primaryKey(),
+    integrationRepositoryId: text("integration_repository_id")
+      .notNull()
+      .references(() => integrationRepositoryTable.id, {
+        onDelete: "cascade",
+        onUpdate: "cascade",
+      }),
+    provider: text("provider").notNull(),
+    deliveryId: text("delivery_id").notNull(),
+    eventName: text("event_name").notNull(),
+    bodySha256: text("body_sha256").notNull(),
+    status: text("status").default("processing").notNull(),
+    lastError: text("last_error"),
+    receivedAt: timestamp("received_at", { mode: "date" })
+      .defaultNow()
+      .notNull(),
+    processedAt: timestamp("processed_at", { mode: "date" }),
+    updatedAt: timestamp("updated_at", { mode: "date" })
+      .defaultNow()
+      .$onUpdate(() => new Date())
+      .notNull(),
+  },
+  (table) => [
+    index("scm_webhook_delivery_repositoryId_idx").on(
+      table.integrationRepositoryId,
+    ),
+    index("scm_webhook_delivery_status_receivedAt_idx").on(
+      table.status,
+      table.receivedAt,
+    ),
+    unique("scm_webhook_delivery_repository_delivery_unique").on(
+      table.integrationRepositoryId,
+      table.deliveryId,
+    ),
+  ],
+);
+
 export const commentTable = pgTable(
   "comment",
   {

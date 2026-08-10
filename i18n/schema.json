@@ -3106,6 +3106,12 @@
 						"githubSectionSubtitle": {
 							"type": "string"
 						},
+						"gitlabSectionTitle": {
+							"type": "string"
+						},
+						"gitlabSectionSubtitle": {
+							"type": "string"
+						},
 						"giteaSectionTitle": {
 							"type": "string"
 						},
@@ -3143,6 +3149,8 @@
 						"subtitle",
 						"githubSectionTitle",
 						"githubSectionSubtitle",
+						"gitlabSectionTitle",
+						"gitlabSectionSubtitle",
 						"giteaSectionTitle",
 						"giteaSectionSubtitle",
 						"discordSectionTitle",
@@ -3894,6 +3902,167 @@
 						"browseNeedsCredentials",
 						"loadingRepos",
 						"retry"
+					]
+				},
+				"gitlabIntegration": {
+					"type": "object",
+					"additionalProperties": false,
+					"properties": {
+						"loading": {
+							"type": "string"
+						},
+						"connectionsTitle": {
+							"type": "string"
+						},
+						"connectionsHint": {
+							"type": "string"
+						},
+						"repositoriesCount": {
+							"type": "string"
+						},
+						"removeConnection": {
+							"type": "string"
+						},
+						"newToken": {
+							"type": "string"
+						},
+						"rotate": {
+							"type": "string"
+						},
+						"connectionName": {
+							"type": "string"
+						},
+						"connectionNamePlaceholder": {
+							"type": "string"
+						},
+						"url": {
+							"type": "string"
+						},
+						"token": {
+							"type": "string"
+						},
+						"tokenPlaceholder": {
+							"type": "string"
+						},
+						"tokenHint": {
+							"type": "string"
+						},
+						"addConnection": {
+							"type": "string"
+						},
+						"repositoriesTitle": {
+							"type": "string"
+						},
+						"repositoriesHint": {
+							"type": "string"
+						},
+						"noRepositories": {
+							"type": "string"
+						},
+						"webhookReady": {
+							"type": "string"
+						},
+						"webhookMissing": {
+							"type": "string"
+						},
+						"import": {
+							"type": "string"
+						},
+						"detach": {
+							"type": "string"
+						},
+						"connection": {
+							"type": "string"
+						},
+						"project": {
+							"type": "string"
+						},
+						"loadingProjects": {
+							"type": "string"
+						},
+						"selectProject": {
+							"type": "string"
+						},
+						"attach": {
+							"type": "string"
+						},
+						"removeConnectionTitle": {
+							"type": "string"
+						},
+						"detachTitle": {
+							"type": "string"
+						},
+						"removeDescription": {
+							"type": "string"
+						},
+						"toast": {
+							"type": "object",
+							"additionalProperties": false,
+							"properties": {
+								"connectionCreated": {
+									"type": "string"
+								},
+								"tokenRotated": {
+									"type": "string"
+								},
+								"connectionRemoved": {
+									"type": "string"
+								},
+								"repositoryAttached": {
+									"type": "string"
+								},
+								"repositoryDetached": {
+									"type": "string"
+								},
+								"imported": {
+									"type": "string"
+								},
+								"importFailed": {
+									"type": "string"
+								}
+							},
+							"required": [
+								"connectionCreated",
+								"tokenRotated",
+								"connectionRemoved",
+								"repositoryAttached",
+								"repositoryDetached",
+								"imported",
+								"importFailed"
+							]
+						}
+					},
+					"required": [
+						"loading",
+						"connectionsTitle",
+						"connectionsHint",
+						"repositoriesCount",
+						"removeConnection",
+						"newToken",
+						"rotate",
+						"connectionName",
+						"connectionNamePlaceholder",
+						"url",
+						"token",
+						"tokenPlaceholder",
+						"tokenHint",
+						"addConnection",
+						"repositoriesTitle",
+						"repositoriesHint",
+						"noRepositories",
+						"webhookReady",
+						"webhookMissing",
+						"import",
+						"detach",
+						"connection",
+						"project",
+						"loadingProjects",
+						"selectProject",
+						"attach",
+						"removeConnectionTitle",
+						"detachTitle",
+						"removeDescription",
+						"toast"
 					]
 				},
 				"slackIntegration": {
@@ -4851,6 +5020,7 @@
 				"columnEditor",
 				"githubIntegration",
 				"giteaIntegration",
+				"gitlabIntegration",
 				"slackIntegration",
 				"discordIntegration",
 				"genericWebhookIntegration",
