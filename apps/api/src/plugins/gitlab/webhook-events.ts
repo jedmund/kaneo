@@ -5,6 +5,7 @@ import {
   columnTable,
   externalLinkTable,
   labelTable,
+  projectTable,
   taskTable,
 } from "../../database/schema";
 import { publishEvent } from "../../events";
@@ -175,11 +176,21 @@ function managedValues(labels: GitLabLabelPayload[] | undefined) {
 }
 
 export function stripKaneoTaskMarker(description: string | null | undefined) {
-  const value = description ?? "";
+  const value = (description ?? "").replace(
+    /\n*<!-- kaneo-scm-sync-job: [^>\r\n]+ -->\s*$/u,
+    "",
+  );
   return value
     .replace(/\n*---\n<sub>Task: [^<]+<\/sub>\s*$/u, "")
     .replace(/^<sub>Task: [^<]+<\/sub>\s*$/u, "")
     .trimEnd();
+}
+
+export function extractKaneoTaskId(
+  description: string | null | undefined,
+): string | null {
+  const match = description?.match(/<sub>Task:\s*([^<\r\n]+)<\/sub>/u);
+  return match?.[1]?.trim() || null;
 }
 
 function connectionUsername(binding: GitLabWebhookBinding) {
@@ -242,38 +253,132 @@ async function createTaskFromIssue(
       eq(columnTable.slug, targetStatus),
     ),
   });
-  const number = await claimTaskNumber(projectId);
-  const [task] = await db
-    .insert(taskTable)
-    .values({
-      projectId,
-      userId: null,
-      title: issue.object_attributes.title,
-      description: stripKaneoTaskMarker(issue.object_attributes.description),
-      status: targetStatus,
-      columnId: targetColumn?.id ?? null,
-      priority: priority ?? null,
-      number,
-    })
-    .returning();
-  if (!task) throw new Error("Failed to create task from GitLab issue");
+  return db.transaction(async (tx) => {
+    // Serialize inbound issue creation for a project so concurrent deliveries
+    // re-check the external link after the first transaction commits.
+    await tx
+      .select({ id: projectTable.id })
+      .from(projectTable)
+      .where(eq(projectTable.id, projectId))
+      .for("update");
 
-  await createExternalLink({
-    taskId: task.id,
-    integrationId: binding.integration.id,
-    integrationRepositoryId: binding.repository.id,
-    resourceType: "issue",
-    externalId: String(issue.object_attributes.iid),
-    url: issue.object_attributes.url,
-    title: issue.object_attributes.title,
-    metadata: {
-      state: issue.object_attributes.state,
-      globalId: issue.object_attributes.id,
-      createdFrom: "gitlab",
-      author: issue.user?.username,
-    },
+    const [existingLink] = await tx
+      .select({ taskId: externalLinkTable.taskId })
+      .from(externalLinkTable)
+      .where(
+        and(
+          eq(externalLinkTable.integrationRepositoryId, binding.repository.id),
+          eq(externalLinkTable.resourceType, "issue"),
+          eq(externalLinkTable.externalId, String(issue.object_attributes.iid)),
+        ),
+      )
+      .limit(1);
+    if (existingLink) {
+      const [existingTask] = await tx
+        .select()
+        .from(taskTable)
+        .where(eq(taskTable.id, existingLink.taskId))
+        .limit(1);
+      if (!existingTask) throw new Error("Linked GitLab task was not found");
+      return existingTask;
+    }
+
+    const number = await claimTaskNumber(projectId, tx);
+    const [task] = await tx
+      .insert(taskTable)
+      .values({
+        projectId,
+        userId: null,
+        title: issue.object_attributes.title,
+        description: stripKaneoTaskMarker(issue.object_attributes.description),
+        status: targetStatus,
+        columnId: targetColumn?.id ?? null,
+        priority: priority ?? null,
+        number,
+      })
+      .returning();
+    if (!task) throw new Error("Failed to create task from GitLab issue");
+
+    await tx.insert(externalLinkTable).values({
+      taskId: task.id,
+      integrationId: binding.integration.id,
+      integrationRepositoryId: binding.repository.id,
+      resourceType: "issue",
+      externalId: String(issue.object_attributes.iid),
+      url: issue.object_attributes.url,
+      title: issue.object_attributes.title,
+      metadata: JSON.stringify({
+        state: issue.object_attributes.state,
+        globalId: issue.object_attributes.id,
+        createdFrom: "gitlab",
+        author: issue.user?.username,
+      }),
+    });
+    return task;
   });
-  return task;
+}
+
+async function linkTaskFromIssueMarker(
+  issue: GitLabIssueHook,
+  binding: GitLabWebhookBinding,
+) {
+  const taskId = extractKaneoTaskId(issue.object_attributes.description);
+  if (!taskId) return false;
+
+  return db.transaction(async (tx) => {
+    const [task] = await tx
+      .select({ id: taskTable.id })
+      .from(taskTable)
+      .where(
+        and(
+          eq(taskTable.id, taskId),
+          eq(taskTable.projectId, binding.integration.projectId),
+        ),
+      )
+      .limit(1);
+    if (!task) return false;
+
+    await tx
+      .insert(externalLinkTable)
+      .values({
+        taskId: task.id,
+        integrationId: binding.integration.id,
+        integrationRepositoryId: binding.repository.id,
+        resourceType: "issue",
+        externalId: String(issue.object_attributes.iid),
+        url: issue.object_attributes.url,
+        title: issue.object_attributes.title,
+        metadata: JSON.stringify({
+          state: issue.object_attributes.state,
+          globalId: issue.object_attributes.id,
+          createdFrom: "kaneo",
+          author: issue.user?.username,
+        }),
+      })
+      .onConflictDoNothing({
+        target: [
+          externalLinkTable.integrationRepositoryId,
+          externalLinkTable.resourceType,
+          externalLinkTable.externalId,
+        ],
+      });
+
+    const [link] = await tx
+      .select({ taskId: externalLinkTable.taskId })
+      .from(externalLinkTable)
+      .where(
+        and(
+          eq(externalLinkTable.integrationRepositoryId, binding.repository.id),
+          eq(externalLinkTable.resourceType, "issue"),
+          eq(externalLinkTable.externalId, String(issue.object_attributes.iid)),
+        ),
+      )
+      .limit(1);
+    if (link?.taskId !== task.id) {
+      throw new Error("GitLab issue is already linked to another task");
+    }
+    return true;
+  });
 }
 
 async function findIssueLink(binding: GitLabWebhookBinding, issueIid: number) {
@@ -354,7 +459,8 @@ export async function handleGitLabIssueHook(
   let link = await findIssueLink(binding, issue.iid);
 
   if (!link && issue.action === "open") {
-    await createTaskFromIssue(payload, binding);
+    const linkedKaneoTask = await linkTaskFromIssueMarker(payload, binding);
+    if (!linkedKaneoTask) await createTaskFromIssue(payload, binding);
     link = await findIssueLink(binding, issue.iid);
   }
   if (!link) return;

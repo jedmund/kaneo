@@ -1,7 +1,9 @@
 import { describe, expect, it } from "vitest";
 import {
   extractGitLabTaskNumber,
+  extractKaneoTaskId,
   gitLabObjectKind,
+  stripKaneoTaskMarker,
 } from "../../../../apps/api/src/plugins/gitlab/webhook-events";
 
 describe("GitLab webhook routing", () => {
@@ -32,5 +34,21 @@ describe("GitLab webhook routing", () => {
     );
     expect(gitLabObjectKind({ object_kind: 1 })).toBeNull();
     expect(gitLabObjectKind(null)).toBeNull();
+  });
+
+  it("extracts and strips Kaneo task and sync markers", () => {
+    const description = `Issue description
+
+---
+<sub>Task: task_123</sub>
+<!-- kaneo-scm-sync-job: sync_job_456 -->`;
+
+    expect(extractKaneoTaskId(description)).toBe("task_123");
+    expect(stripKaneoTaskMarker(description)).toBe("Issue description");
+    expect(
+      stripKaneoTaskMarker(
+        "<sub>Task: task_123</sub>\n<!-- kaneo-scm-sync-job: sync_job_456 -->",
+      ),
+    ).toBe("");
   });
 });
