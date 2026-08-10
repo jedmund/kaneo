@@ -787,7 +787,7 @@ function CreateTaskModal({
                   size="sm"
                   className="h-8 w-auto max-w-64 gap-1.5 rounded-md px-2.5 text-xs font-medium"
                 >
-                  <GitBranch className="size-3.5" />
+                  <GitBranch aria-hidden="true" className="size-3.5" />
                   <SelectValue>{selectedRepository?.label}</SelectValue>
                 </SelectTrigger>
                 <SelectPopup alignItemWithTrigger={false} className="min-w-64">

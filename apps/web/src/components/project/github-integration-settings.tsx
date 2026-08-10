@@ -92,6 +92,12 @@ export function GitHubIntegrationSettings({
     React.useState<VerifyGithubInstallationResponse | null>(null);
   const [showRepositoryBrowser, setShowRepositoryBrowser] =
     React.useState(false);
+  const [importingRepositoryId, setImportingRepositoryId] = React.useState<
+    string | null
+  >(null);
+  const [detachingRepositoryId, setDetachingRepositoryId] = React.useState<
+    string | null
+  >(null);
 
   const form = useForm<GithubIntegrationFormValues>({
     resolver: standardSchemaResolver(githubIntegrationSchema),
@@ -226,6 +232,7 @@ export function GitHubIntegrationSettings({
   };
 
   const handleImportIssues = async (repositoryId: string) => {
+    setImportingRepositoryId(repositoryId);
     try {
       await importIssues({ projectId, repositoryId });
       toast.success(t("settings:githubIntegration.toast.issuesImported"));
@@ -235,10 +242,13 @@ export function GitHubIntegrationSettings({
           ? error.message
           : t("settings:githubIntegration.toast.importError"),
       );
+    } finally {
+      setImportingRepositoryId(null);
     }
   };
 
   const handleDetachRepository = async (repositoryId: string) => {
+    setDetachingRepositoryId(repositoryId);
     try {
       await detachRepository({ projectId, repositoryId });
       toast.success(t("settings:githubIntegration.toast.removed"));
@@ -248,6 +258,8 @@ export function GitHubIntegrationSettings({
           ? error.message
           : t("settings:githubIntegration.toast.removeError"),
       );
+    } finally {
+      setDetachingRepositoryId(null);
     }
   };
 
@@ -326,43 +338,49 @@ export function GitHubIntegrationSettings({
                 {repositories.map((repository) => (
                   <div
                     key={repository.id}
-                    className="flex items-center justify-between gap-3 rounded-md border border-border bg-background p-3"
+                    className="flex flex-col gap-3 rounded-md border border-border bg-background p-3 sm:flex-row sm:items-center sm:justify-between"
                   >
-                    <div className="flex min-w-0 items-center gap-2 text-sm">
-                      <GithubIcon className="size-4 shrink-0" />
+                    <a
+                      aria-label={repository.fullPath}
+                      className="inline-flex min-w-0 max-w-full items-center gap-1.5 font-medium text-sm transition-colors hover:text-primary"
+                      href={repository.webUrl}
+                      rel="noopener noreferrer"
+                      target="_blank"
+                    >
+                      <GithubIcon
+                        aria-hidden="true"
+                        className="size-4 shrink-0"
+                      />
                       <span className="truncate font-medium">
                         {repository.fullPath}
                       </span>
-                      <a
-                        href={repository.webUrl}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="text-primary transition-colors hover:text-primary/80"
-                      >
-                        <ExternalLink className="size-3" />
-                      </a>
-                    </div>
-                    <div className="flex shrink-0 items-center gap-2">
+                      <ExternalLink
+                        aria-hidden="true"
+                        className="size-3 shrink-0"
+                      />
+                    </a>
+                    <div className="flex shrink-0 items-center justify-end gap-1">
                       <Button
-                        type="button"
-                        size="sm"
-                        variant="outline"
-                        className="gap-2"
                         disabled={isImporting || isDetaching}
+                        loading={importingRepositoryId === repository.id}
                         onClick={() => handleImportIssues(repository.id)}
+                        size="sm"
+                        type="button"
+                        variant="outline"
                       >
-                        <Import className="size-3" />
+                        <Import aria-hidden="true" className="size-3" />
                         {t("settings:githubIntegration.importIssues")}
                       </Button>
                       <Button
-                        type="button"
-                        size="sm"
-                        variant="ghost"
-                        disabled={isImporting || isDetaching}
-                        onClick={() => handleDetachRepository(repository.id)}
                         aria-label={`${t("settings:githubIntegration.disconnect")} ${repository.fullPath}`}
+                        disabled={isImporting || isDetaching}
+                        loading={detachingRepositoryId === repository.id}
+                        onClick={() => handleDetachRepository(repository.id)}
+                        size="icon-sm"
+                        type="button"
+                        variant="ghost"
                       >
-                        <Unlink className="size-3" />
+                        <Unlink aria-hidden="true" className="size-3" />
                       </Button>
                     </div>
                   </div>

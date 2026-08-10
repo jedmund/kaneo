@@ -133,6 +133,12 @@ export function GiteaIntegrationSettings({ projectId }: { projectId: string }) {
   const [shownWebhookSecret, setShownWebhookSecret] = React.useState<
     string | null
   >(null);
+  const [importingRepositoryId, setImportingRepositoryId] = React.useState<
+    string | null
+  >(null);
+  const [detachingRepositoryId, setDetachingRepositoryId] = React.useState<
+    string | null
+  >(null);
 
   const form = useForm<GiteaIntegrationFormValues>({
     resolver: standardSchemaResolver(giteaIntegrationSchema),
@@ -357,6 +363,7 @@ export function GiteaIntegrationSettings({ projectId }: { projectId: string }) {
   };
 
   const handleImportIssues = async (repositoryId: string) => {
+    setImportingRepositoryId(repositoryId);
     try {
       await importIssues({ projectId, repositoryId });
       toast.success(t("settings:giteaIntegration.toast.issuesImported"));
@@ -366,10 +373,13 @@ export function GiteaIntegrationSettings({ projectId }: { projectId: string }) {
           ? error.message
           : t("settings:giteaIntegration.toast.importError"),
       );
+    } finally {
+      setImportingRepositoryId(null);
     }
   };
 
   const handleDetachRepository = async (repositoryId: string) => {
+    setDetachingRepositoryId(repositoryId);
     try {
       await detachRepository({ projectId, repositoryId });
       toast.success(t("settings:giteaIntegration.toast.removed"));
@@ -379,6 +389,8 @@ export function GiteaIntegrationSettings({ projectId }: { projectId: string }) {
           ? error.message
           : t("settings:giteaIntegration.toast.removeError"),
       );
+    } finally {
+      setDetachingRepositoryId(null);
     }
   };
 
@@ -518,41 +530,48 @@ export function GiteaIntegrationSettings({ projectId }: { projectId: string }) {
                     key={repository.id}
                     className="space-y-3 rounded-md border border-border bg-background p-3"
                   >
-                    <div className="flex items-center justify-between gap-3">
-                      <div className="flex min-w-0 items-center gap-2 text-sm">
+                    <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                      <a
+                        aria-label={repository.fullPath}
+                        className="inline-flex min-w-0 max-w-full items-center gap-1.5 font-medium text-sm transition-colors hover:text-primary"
+                        href={repository.webUrl}
+                        rel="noopener noreferrer"
+                        target="_blank"
+                      >
+                        <GitBranch
+                          aria-hidden="true"
+                          className="size-4 shrink-0"
+                        />
                         <span className="truncate font-medium">
                           {repository.fullPath}
                         </span>
-                        <a
-                          href={repository.webUrl}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="text-primary transition-colors hover:text-primary/80"
-                        >
-                          <ExternalLink className="size-3" />
-                        </a>
-                      </div>
-                      <div className="flex shrink-0 gap-2">
+                        <ExternalLink
+                          aria-hidden="true"
+                          className="size-3 shrink-0"
+                        />
+                      </a>
+                      <div className="flex shrink-0 justify-end gap-1">
                         <Button
-                          type="button"
-                          size="sm"
-                          variant="outline"
-                          className="gap-2"
                           disabled={isImporting || isDetaching}
+                          loading={importingRepositoryId === repository.id}
                           onClick={() => handleImportIssues(repository.id)}
+                          size="sm"
+                          type="button"
+                          variant="outline"
                         >
-                          <Import className="size-3" />
+                          <Import aria-hidden="true" className="size-3" />
                           {t("settings:giteaIntegration.importIssues")}
                         </Button>
                         <Button
-                          type="button"
-                          size="sm"
-                          variant="ghost"
-                          disabled={isImporting || isDetaching}
-                          onClick={() => handleDetachRepository(repository.id)}
                           aria-label={`${t("settings:giteaIntegration.disconnect")} ${repository.fullPath}`}
+                          disabled={isImporting || isDetaching}
+                          loading={detachingRepositoryId === repository.id}
+                          onClick={() => handleDetachRepository(repository.id)}
+                          size="icon-sm"
+                          type="button"
+                          variant="ghost"
                         >
-                          <Unlink className="size-3" />
+                          <Unlink aria-hidden="true" className="size-3" />
                         </Button>
                       </div>
                     </div>
@@ -560,36 +579,40 @@ export function GiteaIntegrationSettings({ projectId }: { projectId: string }) {
                       <code className="block break-all rounded bg-muted px-2 py-1 text-[11px]">
                         {repository.webhookUrl}
                       </code>
-                      <div className="flex items-start gap-2">
+                      <div className="flex flex-col gap-2 sm:flex-row sm:items-start">
                         <code className="block flex-1 break-all rounded bg-muted px-2 py-1 text-[11px]">
                           {shownWebhookSecret === repository.id
                             ? repository.webhookSecret
                             : "••••••••••••••••••••••••••••••••"}
                         </code>
-                        <Button
-                          type="button"
-                          variant="outline"
-                          size="sm"
-                          onClick={() =>
-                            setShownWebhookSecret((current) =>
-                              current === repository.id ? null : repository.id,
-                            )
-                          }
-                        >
-                          {shownWebhookSecret === repository.id
-                            ? t("settings:giteaIntegration.webhookHide")
-                            : t("settings:giteaIntegration.webhookShow")}
-                        </Button>
-                        <Button
-                          type="button"
-                          variant="outline"
-                          size="sm"
-                          onClick={() =>
-                            handleCopyWebhookSecret(repository.webhookSecret)
-                          }
-                        >
-                          {t("settings:giteaIntegration.webhookCopy")}
-                        </Button>
+                        <div className="flex shrink-0 gap-1 self-end sm:self-start">
+                          <Button
+                            onClick={() =>
+                              setShownWebhookSecret((current) =>
+                                current === repository.id
+                                  ? null
+                                  : repository.id,
+                              )
+                            }
+                            size="sm"
+                            type="button"
+                            variant="outline"
+                          >
+                            {shownWebhookSecret === repository.id
+                              ? t("settings:giteaIntegration.webhookHide")
+                              : t("settings:giteaIntegration.webhookShow")}
+                          </Button>
+                          <Button
+                            onClick={() =>
+                              handleCopyWebhookSecret(repository.webhookSecret)
+                            }
+                            size="sm"
+                            type="button"
+                            variant="outline"
+                          >
+                            {t("settings:giteaIntegration.webhookCopy")}
+                          </Button>
+                        </div>
                       </div>
                     </div>
                   </div>
