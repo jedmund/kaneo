@@ -1,6 +1,8 @@
+import type { Context } from "hono";
 import { Hono } from "hono";
 import { describeRoute, resolver, validator } from "hono-openapi";
 import * as v from "valibot";
+import { handleGitLabWebhookRequest } from "../plugins/gitlab/webhook-handler";
 import { requireWorkspacePermission } from "../utils/require-workspace-permission";
 import { workspaceAccess } from "../utils/workspace-access-middleware";
 import {
@@ -307,3 +309,23 @@ const gitlabIntegration = new Hono<typeof routeVariables>()
   );
 
 export default gitlabIntegration;
+
+export async function handleGitLabWebhookRoute(c: Context) {
+  const repositoryId = c.req.param("repositoryId");
+  if (!repositoryId) {
+    return c.json({ error: "Missing repository id" }, 400);
+  }
+  const rawBody = Buffer.from(await c.req.arrayBuffer()).toString("utf8");
+  const result = await handleGitLabWebhookRequest({
+    repositoryId,
+    rawBody,
+    headers: {
+      webhookId: c.req.header("webhook-id"),
+      webhookTimestamp: c.req.header("webhook-timestamp"),
+      webhookSignature: c.req.header("webhook-signature"),
+    },
+  });
+  return c.json({
+    status: result.duplicate ? "duplicate" : "success",
+  });
+}
