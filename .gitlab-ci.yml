@@ -115,6 +115,21 @@ container:
       docker buildx inspect "$builder_name" --bootstrap
 
       if [ "$CI_COMMIT_BRANCH" = "$CI_DEFAULT_BRANCH" ] || [ -n "$CI_COMMIT_TAG" ]; then
+        # The runner resolves homelab-only registry names through extra_hosts,
+        # but the isolated BuildKit container does not inherit that mapping.
+        registry_ip="$(
+          awk -v registry="$CI_REGISTRY" '
+            { for (field = 2; field <= NF; field++) if ($field == registry) { print $1; exit } }
+          ' /etc/hosts
+        )"
+        if [ -z "$registry_ip" ]; then
+          echo "Unable to resolve $CI_REGISTRY from the runner hosts file" >&2
+          exit 1
+        fi
+        docker exec "buildx_buildkit_${builder_name}0" sh -c \
+          'printf "%s %s\n" "$1" "$2" >> /etc/hosts' \
+          -- "$registry_ip" "$CI_REGISTRY"
+
         echo "$CI_REGISTRY_PASSWORD" | docker login \
           --username "$CI_REGISTRY_USER" \
           --password-stdin \
