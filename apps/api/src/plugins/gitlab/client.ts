@@ -102,6 +102,10 @@ export function normalizeGitLabUrl(value: string): string {
   return `${parsed.origin}${parsed.pathname.replace(/\/+$/, "")}`;
 }
 
+export function gitLabInstanceUrl(baseUrl: string, path: string): string {
+  return `${normalizeGitLabUrl(baseUrl)}/${path.replace(/^\/+/, "")}`;
+}
+
 function configuredGitLabOrigins() {
   const configuredPublic = process.env.GITLAB_PUBLIC_URL?.trim();
   const configuredInternal = process.env.GITLAB_INTERNAL_URL?.trim();
@@ -178,7 +182,7 @@ async function fetchGitLabOrigin(
   }
 
   try {
-    const response = await fetch(`${internalUrl}${requestPath}`, {
+    const response = await fetch(gitLabInstanceUrl(internalUrl, requestPath), {
       ...init,
       signal: controller.signal,
       redirect: "manual",

@@ -6,6 +6,7 @@ import {
   getGitLabOAuthConfig,
   gitLabOAuthCallbackHtml,
 } from "../../../apps/api/src/gitlab-integration/oauth";
+import { gitLabInstanceUrl } from "../../../apps/api/src/plugins/gitlab/client";
 
 const savedEnvironment = {
   GITLAB_PUBLIC_URL: process.env.GITLAB_PUBLIC_URL,
@@ -50,6 +51,12 @@ describe("GitLab OAuth configuration", () => {
       enabled: false,
       publicUrl: null,
     });
+  });
+
+  it("preserves a GitLab relative URL root for authorization", () => {
+    expect(
+      gitLabInstanceUrl("https://gitlab.example/gitlab", "/oauth/authorize"),
+    ).toBe("https://gitlab.example/gitlab/oauth/authorize");
   });
 });
 

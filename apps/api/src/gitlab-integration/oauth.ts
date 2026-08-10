@@ -5,6 +5,7 @@ import db from "../database";
 import { scmConnectionTable, scmOAuthStateTable } from "../database/schema";
 import {
   createGitLabClient,
+  gitLabInstanceUrl,
   gitlabOAuthFetch,
   normalizeGitLabUrl,
   resolveGitLabInternalUrl,
@@ -196,7 +197,9 @@ export async function beginGitLabOAuth(input: {
     expiresAt: new Date(now.getTime() + OAUTH_STATE_TTL_MS),
   });
 
-  const authorizationUrl = new URL("/oauth/authorize", config.publicUrl);
+  const authorizationUrl = new URL(
+    gitLabInstanceUrl(config.publicUrl, "oauth/authorize"),
+  );
   authorizationUrl.search = new URLSearchParams({
     client_id: config.clientId,
     redirect_uri: config.redirectUri,
