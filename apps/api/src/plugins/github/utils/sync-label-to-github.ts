@@ -1,6 +1,4 @@
-import { eq } from "drizzle-orm";
 import db from "../../../database";
-import { externalLinkTable } from "../../../database/schema";
 import { getInstallationOctokit } from "./github-app";
 
 const namedColorToHex: Record<string, string> = {
@@ -45,18 +43,20 @@ function toHexColor(color: string): string {
 
 async function getGitHubContext(taskId: string) {
   const externalLink = await db.query.externalLinkTable.findFirst({
-    where: eq(externalLinkTable.taskId, taskId),
+    where: (table, { and, eq }) =>
+      and(eq(table.taskId, taskId), eq(table.resourceType, "issue")),
     with: {
       integration: true,
+      integrationRepository: true,
     },
   });
 
-  if (!externalLink || externalLink.resourceType !== "issue") {
+  if (externalLink?.resourceType !== "issue") {
     return null;
   }
 
   const integration = externalLink.integration;
-  if (!integration || integration.type !== "github") {
+  if (integration?.type !== "github") {
     return null;
   }
 
@@ -69,6 +69,20 @@ async function getGitHubContext(taskId: string) {
     config = JSON.parse(integration.config);
   } catch {
     return null;
+  }
+
+  if (externalLink.integrationRepository) {
+    const path = externalLink.integrationRepository.fullPath.split("/");
+    config.repositoryName = path.pop() ?? config.repositoryName;
+    config.repositoryOwner = path.join("/");
+    const metadata = externalLink.integrationRepository.metadata;
+    if (typeof metadata === "object" && metadata !== null) {
+      const installationId = (metadata as { installationId?: unknown })
+        .installationId;
+      if (typeof installationId === "number") {
+        config.installationId = installationId;
+      }
+    }
   }
 
   if (!config.installationId) {
