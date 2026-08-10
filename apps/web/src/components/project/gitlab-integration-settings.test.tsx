@@ -5,6 +5,7 @@ import {
   render,
   screen,
   waitFor,
+  within,
 } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { GitLabIntegrationSettings } from "./gitlab-integration-settings";
@@ -26,9 +27,13 @@ vi.mock("@kaneo/libs", () => ({
   resolveApiBaseUrl: () => "http://localhost:1337",
 }));
 
-vi.mock("react-i18next", () => ({
-  useTranslation: () => ({ t: (key: string) => key }),
-}));
+vi.mock("react-i18next", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("react-i18next")>();
+  return {
+    ...actual,
+    useTranslation: () => ({ t: (key: string) => key }),
+  };
+});
 
 vi.mock("@/fetchers/gitlab-integration", () => ({
   attachGitLabRepository: gitLabMocks.attachRepository,
@@ -133,5 +138,102 @@ describe("GitLabIntegrationSettings", () => {
       expect(projectTrigger).toHaveTextContent("jedmund/kaneo"),
     );
     expect(projectTrigger).not.toHaveTextContent("23");
+  });
+
+  it("keeps connection forms in a dialog and switches authentication methods", async () => {
+    gitLabMocks.listConnections.mockResolvedValue({
+      oauth: {
+        enabled: true,
+        publicUrl: "https://git.atelier.house",
+      },
+      connections: [],
+    });
+
+    renderSettings();
+
+    expect(
+      screen.queryByLabelText("settings:gitlabIntegration.oauthConnectionName"),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByLabelText("settings:gitlabIntegration.connectionName"),
+    ).not.toBeInTheDocument();
+
+    fireEvent.click(
+      await screen.findByRole("button", {
+        name: "settings:gitlabIntegration.addConnection",
+      }),
+    );
+
+    const dialog = await screen.findByRole("dialog");
+    expect(
+      within(dialog).getByLabelText(
+        "settings:gitlabIntegration.oauthConnectionName",
+      ),
+    ).toBeVisible();
+
+    fireEvent.click(
+      within(dialog).getByRole("tab", {
+        name: "settings:gitlabIntegration.token",
+      }),
+    );
+
+    expect(
+      within(dialog).getByLabelText(
+        "settings:gitlabIntegration.connectionName",
+      ),
+    ).toBeVisible();
+    expect(
+      within(dialog).getByLabelText("settings:gitlabIntegration.url"),
+    ).toBeVisible();
+    expect(
+      within(dialog).getByPlaceholderText(
+        "settings:gitlabIntegration.tokenPlaceholder",
+      ),
+    ).toBeVisible();
+  });
+
+  it("creates a token connection from the dialog and closes it", async () => {
+    gitLabMocks.createTokenConnection.mockResolvedValue(undefined);
+
+    renderSettings();
+
+    fireEvent.click(
+      await screen.findByRole("button", {
+        name: "settings:gitlabIntegration.addConnection",
+      }),
+    );
+    const dialog = await screen.findByRole("dialog");
+
+    fireEvent.change(
+      within(dialog).getByLabelText(
+        "settings:gitlabIntegration.connectionName",
+      ),
+      { target: { value: "Studio GitLab" } },
+    );
+    fireEvent.change(
+      within(dialog).getByLabelText("settings:gitlabIntegration.url"),
+      { target: { value: "https://gitlab.studio.example" } },
+    );
+    fireEvent.change(
+      within(dialog).getByLabelText("settings:gitlabIntegration.token"),
+      { target: { value: "glpat-secret" } },
+    );
+    fireEvent.click(
+      within(dialog).getByRole("button", {
+        name: "settings:gitlabIntegration.addConnection",
+      }),
+    );
+
+    await waitFor(() =>
+      expect(gitLabMocks.createTokenConnection.mock.calls[0]?.[0]).toEqual({
+        workspaceId: "workspace-1",
+        name: "Studio GitLab",
+        publicUrl: "https://gitlab.studio.example",
+        accessToken: "glpat-secret",
+      }),
+    );
+    await waitFor(() =>
+      expect(screen.queryByRole("dialog")).not.toBeInTheDocument(),
+    );
   });
 });
