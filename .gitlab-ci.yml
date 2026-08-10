@@ -30,9 +30,8 @@ lint:
   extends: .node-job
   stage: validate
   script:
-    # The pnpm cache lives inside the checkout. Prefer tracked inputs, while the
-    # root Biome exclusion protects runners that traverse the whole workspace.
-    - git ls-files -z | xargs -0 pnpm exec biome ci --files-ignore-unknown=true
+    # The root Biome config excludes the restored pnpm store from traversal.
+    - pnpm exec biome ci .
 
 typecheck:
   extends: .node-job
