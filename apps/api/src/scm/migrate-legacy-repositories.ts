@@ -22,7 +22,7 @@ export type LegacyRepository = {
   providerRepositoryId: string;
   fullPath: string;
   webUrl: string;
-  metadata: { legacyConfig: true };
+  metadata: { legacyConfig: true; installationId?: number };
   isActive: boolean;
   createdAt: Date;
   updatedAt: Date;
@@ -66,7 +66,13 @@ export function legacyRepositoryFromIntegration(
         : fullPath.toLowerCase(),
     fullPath,
     webUrl: `${remoteOrigin}/${fullPath}`,
-    metadata: { legacyConfig: true },
+    metadata: {
+      legacyConfig: true,
+      ...(integration.type === "github" &&
+      typeof config.installationId === "number"
+        ? { installationId: config.installationId }
+        : {}),
+    },
     isActive: integration.isActive ?? true,
     createdAt: integration.createdAt,
     updatedAt: integration.updatedAt,

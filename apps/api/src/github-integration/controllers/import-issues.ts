@@ -3,7 +3,6 @@ import { HTTPException } from "hono/http-exception";
 import db from "../../database";
 import {
   activityTable,
-  integrationTable,
   labelTable,
   projectTable,
   taskTable,
@@ -22,6 +21,7 @@ import {
 import { formatTaskDescriptionFromIssue } from "../../plugins/github/utils/format";
 import { getInstallationOctokit } from "../../plugins/github/utils/github-app";
 import { claimTaskNumber } from "../../task/controllers/claim-task-numbers";
+import { requireAttachedGitHubRepository } from "../repositories";
 
 type ImportResult = {
   imported: number;
@@ -59,7 +59,10 @@ type GitHubPullRequest = {
   user: { login: string; avatar_url: string } | null;
 };
 
-export async function importIssues(projectId: string): Promise<ImportResult> {
+export async function importIssues(
+  projectId: string,
+  repositoryId: string,
+): Promise<ImportResult> {
   const errors: string[] = [];
   let imported = 0;
   let updated = 0;
@@ -73,30 +76,17 @@ export async function importIssues(projectId: string): Promise<ImportResult> {
     throw new HTTPException(404, { message: "Project not found" });
   }
 
-  const integration = await db.query.integrationTable.findFirst({
-    where: and(
-      eq(integrationTable.projectId, projectId),
-      eq(integrationTable.type, "github"),
-    ),
+  const repository = await requireAttachedGitHubRepository({
+    projectId,
+    repositoryId,
   });
-
-  if (!integration) {
-    throw new HTTPException(404, { message: "GitHub integration not found" });
-  }
-
-  if (!integration.isActive) {
-    throw new HTTPException(400, {
-      message: "GitHub integration is not active",
-    });
-  }
-
-  const config = JSON.parse(integration.config) as GitHubConfig;
-
-  if (!config.installationId) {
-    throw new HTTPException(400, {
-      message: "GitHub installation ID not configured",
-    });
-  }
+  const integration = repository.integration;
+  const config = {
+    ...(JSON.parse(integration.config) as GitHubConfig),
+    repositoryOwner: repository.repositoryOwner,
+    repositoryName: repository.repositoryName,
+    installationId: repository.installationId,
+  };
 
   const octokit = await getInstallationOctokit(config.installationId);
 
@@ -133,6 +123,7 @@ export async function importIssues(projectId: string): Promise<ImportResult> {
         project.workspaceId,
         config,
         octokit,
+        repository.binding.id,
       );
 
       if (result === "imported") {
@@ -177,6 +168,7 @@ export async function importIssues(projectId: string): Promise<ImportResult> {
         projectId,
         project.slug,
         config,
+        repository.binding.id,
       );
     } catch (error) {
       const errorMessage =
@@ -200,11 +192,13 @@ async function importSingleIssue(
   workspaceId: string,
   config: GitHubConfig,
   octokit: Awaited<ReturnType<typeof getInstallationOctokit>>,
+  integrationRepositoryId: string,
 ): Promise<"imported" | "updated" | "skipped"> {
   const existingLink = await findExternalLink(
     integrationId,
     "issue",
     issue.number.toString(),
+    integrationRepositoryId,
   );
 
   const priority = extractIssuePriority(issue.labels);
@@ -260,6 +254,7 @@ async function importSingleIssue(
   await createExternalLink({
     taskId: createdTask.id,
     integrationId,
+    integrationRepositoryId,
     resourceType: "issue",
     externalId: issue.number.toString(),
     url: issue.html_url,
@@ -410,6 +405,7 @@ async function linkPullRequestToTask(
   projectId: string,
   projectSlug: string,
   config: GitHubConfig,
+  integrationRepositoryId: string,
 ): Promise<void> {
   const taskNumber = extractTaskNumber(
     pr.head.ref,
@@ -433,6 +429,7 @@ async function linkPullRequestToTask(
     integrationId,
     "pull_request",
     pr.number.toString(),
+    integrationRepositoryId,
   );
 
   if (existingLink) {
@@ -442,6 +439,7 @@ async function linkPullRequestToTask(
   await createExternalLink({
     taskId: task.id,
     integrationId,
+    integrationRepositoryId,
     resourceType: "pull_request",
     externalId: pr.number.toString(),
     url: pr.html_url,
