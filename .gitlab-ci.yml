@@ -30,6 +30,7 @@ lint:
   extends: .node-job
   stage: validate
   script:
+    # The root Biome config excludes the restored pnpm store from traversal.
     - pnpm exec biome ci .
 
 typecheck:
@@ -81,39 +82,61 @@ build:
 
 container:
   stage: build
-  image:
-    name: moby/buildkit:v0.31.2-rootless
-    entrypoint: [""]
-  variables:
-    BUILDKITD_FLAGS: --oci-worker-no-process-sandbox
+  image: docker:27.5.1-cli
   before_script:
-    - mkdir -p "$HOME/.docker"
-    - AUTH="$(printf '%s' "${CI_REGISTRY_USER}:${CI_REGISTRY_PASSWORD}" | base64 | tr -d '\n')"
-    - printf '{"auths":{"%s":{"auth":"%s"}}}\n' "$CI_REGISTRY" "$AUTH" > "$HOME/.docker/config.json"
     - |
+      builder_name="kaneo-ci-${CI_JOB_ID}"
+      buildkit_config="$CI_PROJECT_DIR/.buildkitd.toml"
       if [ -n "${REGISTRY_CA_CERT:-}" ]; then
-        mkdir -p "$HOME/.config/buildkit" "$HOME/.certs"
+        registry_ca="$CI_PROJECT_DIR/.registry-ca.crt"
         if [ -f "$REGISTRY_CA_CERT" ]; then
-          cp "$REGISTRY_CA_CERT" "$HOME/.certs/registry-ca.crt"
+          cp "$REGISTRY_CA_CERT" "$registry_ca"
         else
-          printf '%s\n' "$REGISTRY_CA_CERT" > "$HOME/.certs/registry-ca.crt"
+          printf '%s\n' "$REGISTRY_CA_CERT" > "$registry_ca"
         fi
-        printf '[registry."%s"]\n  ca=["%s"]\n' \
-          "$CI_REGISTRY" "$HOME/.certs/registry-ca.crt" \
-          > "$HOME/.config/buildkit/buildkitd.toml"
-        export BUILDKITD_FLAGS="${BUILDKITD_FLAGS} --config=${HOME}/.config/buildkit/buildkitd.toml"
+
+        # docker login runs in this client container, while buildx pushes from
+        # its BuildKit container. Both must trust a private registry CA.
+        cp "$registry_ca" /usr/local/share/ca-certificates/kaneo-registry-ca.crt
+        update-ca-certificates
+        printf '[registry."%s"]\n  ca = ["%s"]\n' \
+          "$CI_REGISTRY" "$registry_ca" > "$buildkit_config"
+        docker buildx create \
+          --name "$builder_name" \
+          --driver docker-container \
+          --buildkitd-config "$buildkit_config" \
+          --use
+      else
+        docker buildx create \
+          --name "$builder_name" \
+          --driver docker-container \
+          --use
+      fi
+      docker buildx inspect "$builder_name" --bootstrap
+
+      if [ "$CI_COMMIT_BRANCH" = "$CI_DEFAULT_BRANCH" ] || [ -n "$CI_COMMIT_TAG" ]; then
+        echo "$CI_REGISTRY_PASSWORD" | docker login \
+          --username "$CI_REGISTRY_USER" \
+          --password-stdin \
+          "$CI_REGISTRY"
       fi
   script:
     - |
+      image="${CI_REGISTRY_IMAGE}:${CI_COMMIT_SHA}"
       if [ "$CI_COMMIT_BRANCH" = "$CI_DEFAULT_BRANCH" ] || [ -n "$CI_COMMIT_TAG" ]; then
-        output="type=image,name=${CI_REGISTRY_IMAGE}:${CI_COMMIT_SHA},push=true"
+        docker buildx build \
+          --provenance=false \
+          --file Dockerfile.kaneo \
+          --tag "$image" \
+          --push \
+          .
       else
-        output="type=cacheonly"
+        docker buildx build \
+          --provenance=false \
+          --file Dockerfile.kaneo \
+          --tag "$image" \
+          .
       fi
-
-      buildctl-daemonless.sh build \
-        --frontend dockerfile.v0 \
-        --local context=. \
-        --local dockerfile=. \
-        --opt filename=Dockerfile.kaneo \
-        --output "$output"
+  after_script:
+    - docker buildx rm "kaneo-ci-${CI_JOB_ID}" || true
+    - docker logout "$CI_REGISTRY" || true
