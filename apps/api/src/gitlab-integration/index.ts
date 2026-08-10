@@ -16,6 +16,7 @@ import { importGitLabIssues } from "./imports";
 import {
   beginGitLabOAuth,
   completeGitLabOAuth,
+  getGitLabOAuthAvailability,
   gitLabOAuthCallbackHtml,
 } from "./oauth";
 import {
@@ -206,7 +207,13 @@ const gitlabIntegration = new Hono<typeof routeVariables>()
           content: {
             "application/json": {
               schema: resolver(
-                v.object({ connections: v.array(connectionSchema) }),
+                v.object({
+                  connections: v.array(connectionSchema),
+                  oauth: v.object({
+                    enabled: v.boolean(),
+                    publicUrl: v.nullable(v.string()),
+                  }),
+                }),
               ),
             },
           },
@@ -218,7 +225,10 @@ const gitlabIntegration = new Hono<typeof routeVariables>()
     requireWorkspacePermission({ workspace: ["manage_settings"] }),
     async (c) => {
       const workspaceId = c.get("workspaceId");
-      return c.json({ connections: await listGitLabConnections(workspaceId) });
+      return c.json({
+        connections: await listGitLabConnections(workspaceId),
+        oauth: getGitLabOAuthAvailability(),
+      });
     },
   )
   .post(

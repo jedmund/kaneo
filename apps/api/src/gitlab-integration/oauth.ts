@@ -68,6 +68,15 @@ export function getGitLabOAuthConfig(): GitLabOAuthConfig {
   };
 }
 
+export function getGitLabOAuthAvailability() {
+  try {
+    const config = getGitLabOAuthConfig();
+    return { enabled: true as const, publicUrl: config.publicUrl };
+  } catch {
+    return { enabled: false as const, publicUrl: null };
+  }
+}
+
 function sha256(value: string): string {
   return createHash("sha256").update(value).digest("base64url");
 }

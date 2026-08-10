@@ -1,3 +1,4 @@
+import { resolveApiBaseUrl } from "@kaneo/libs";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   ExternalLink,
@@ -7,10 +8,11 @@ import {
   Link,
   Loader2,
   RefreshCw,
+  ShieldCheck,
   Trash2,
   Unlink,
 } from "lucide-react";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import {
   AlertDialog,
@@ -35,6 +37,7 @@ import {
 import { Separator } from "@/components/ui/separator";
 import {
   attachGitLabRepository,
+  beginGitLabOAuthConnection,
   createGitLabTokenConnection,
   deleteGitLabConnection,
   detachGitLabRepository,
@@ -62,6 +65,7 @@ export function GitLabIntegrationSettings({
   const { workspace } = useWorkspacePermission();
   const workspaceId = workspace?.id ?? "";
   const [name, setName] = useState("");
+  const [oauthName, setOauthName] = useState("");
   const [publicUrl, setPublicUrl] = useState("");
   const [accessToken, setAccessToken] = useState("");
   const [selectedConnectionId, setSelectedConnectionId] = useState("");
@@ -73,6 +77,8 @@ export function GitLabIntegrationSettings({
   const [importingRepositoryId, setImportingRepositoryId] = useState<
     string | null
   >(null);
+  const [oauthPendingId, setOauthPendingId] = useState<string | null>(null);
+  const oauthPopupRef = useRef<Window | null>(null);
 
   const connectionsQuery = useQuery({
     queryKey: ["gitlab-connections", workspaceId],
@@ -94,6 +100,7 @@ export function GitLabIntegrationSettings({
   });
 
   const connections = connectionsQuery.data?.connections ?? [];
+  const oauthAvailability = connectionsQuery.data?.oauth;
   const repositories = repositoriesQuery.data?.repositories ?? [];
   const attachedProviderIds = useMemo(
     () =>
@@ -121,6 +128,83 @@ export function GitLabIntegrationSettings({
     queryClient.invalidateQueries({ queryKey: ["gitlab-connections"] });
   const refreshRepositories = () =>
     queryClient.invalidateQueries({ queryKey: ["gitlab-repositories"] });
+
+  useEffect(() => {
+    const apiOrigin = new URL(resolveApiBaseUrl(import.meta.env.VITE_API_URL))
+      .origin;
+    const handleMessage = (event: MessageEvent) => {
+      if (
+        event.origin !== apiOrigin ||
+        event.source !== oauthPopupRef.current ||
+        !event.data ||
+        typeof event.data !== "object" ||
+        event.data.type !== "kaneo:gitlab-oauth" ||
+        (event.data.status !== "success" && event.data.status !== "error")
+      ) {
+        return;
+      }
+
+      oauthPopupRef.current = null;
+      setOauthPendingId(null);
+      if (event.data.status === "success") {
+        setOauthName("");
+        void queryClient.invalidateQueries({
+          queryKey: ["gitlab-connections"],
+        });
+        toast.success(t("settings:gitlabIntegration.toast.oauthConnected"));
+      } else {
+        toast.error(t("settings:gitlabIntegration.toast.oauthFailed"));
+      }
+    };
+    window.addEventListener("message", handleMessage);
+    return () => window.removeEventListener("message", handleMessage);
+  }, [queryClient, t]);
+
+  useEffect(() => {
+    if (!oauthPendingId) return;
+    const intervalId = window.setInterval(() => {
+      if (oauthPopupRef.current?.closed) {
+        oauthPopupRef.current = null;
+        setOauthPendingId(null);
+      }
+    }, 500);
+    return () => window.clearInterval(intervalId);
+  }, [oauthPendingId]);
+
+  const startOAuth = async (connection?: { id: string; name: string }) => {
+    const connectionName = connection?.name ?? oauthName.trim();
+    if (!workspaceId || !connectionName) return;
+    const popup = window.open(
+      "about:blank",
+      "kaneo-gitlab-oauth",
+      "popup,width=720,height=760",
+    );
+    if (!popup) {
+      toast.error(t("settings:gitlabIntegration.toast.popupBlocked"));
+      return;
+    }
+
+    oauthPopupRef.current = popup;
+    setOauthPendingId(connection?.id ?? "new");
+    try {
+      const { authorizationUrl } = await beginGitLabOAuthConnection({
+        workspaceId,
+        name: connectionName,
+        connectionId: connection?.id,
+      });
+      popup.location.replace(authorizationUrl);
+      popup.focus();
+    } catch (error) {
+      popup.close();
+      oauthPopupRef.current = null;
+      setOauthPendingId(null);
+      toast.error(
+        error instanceof Error
+          ? error.message
+          : t("settings:gitlabIntegration.toast.oauthFailed"),
+      );
+    }
+  };
 
   const createConnection = useMutation({
     mutationFn: createGitLabTokenConnection,
@@ -298,10 +382,17 @@ export function GitLabIntegrationSettings({
                       {connection.gitlabUsername
                         ? `@${connection.gitlabUsername} · `
                         : ""}
-                      {connection.credentialHint ?? ""} ·{" "}
+                      {connection.credentialHint
+                        ? `${connection.credentialHint} · `
+                        : ""}
                       {connection.attachedRepositoryCount}{" "}
                       {t("settings:gitlabIntegration.repositoriesCount")}
                     </p>
+                    {connection.statusMessage && (
+                      <p className="mt-1 text-warning text-xs">
+                        {connection.statusMessage}
+                      </p>
+                    )}
                   </div>
                   <Button
                     aria-label={t(
@@ -356,9 +447,65 @@ export function GitLabIntegrationSettings({
                     </Button>
                   </div>
                 )}
+                {connection.authType === "oauth" && (
+                  <div className="mt-3">
+                    <Button
+                      disabled={oauthPendingId !== null}
+                      onClick={() => startOAuth(connection)}
+                      variant="outline"
+                    >
+                      {oauthPendingId === connection.id ? (
+                        <Loader2 className="size-4 animate-spin" />
+                      ) : (
+                        <RefreshCw className="size-4" />
+                      )}
+                      {t("settings:gitlabIntegration.reauthorizeOAuth")}
+                    </Button>
+                  </div>
+                )}
               </div>
             ))}
           </div>
+        )}
+
+        {oauthAvailability?.enabled && oauthAvailability.publicUrl && (
+          <form
+            className="flex flex-col gap-3 rounded-lg border border-border p-3 sm:flex-row sm:items-end"
+            onSubmit={(event) => {
+              event.preventDefault();
+              void startOAuth();
+            }}
+          >
+            <div className="min-w-0 flex-1 space-y-1.5">
+              <Label htmlFor="gitlab-oauth-connection-name">
+                {t("settings:gitlabIntegration.oauthConnectionName")}
+              </Label>
+              <Input
+                id="gitlab-oauth-connection-name"
+                onChange={(event) => setOauthName(event.target.value)}
+                placeholder={t(
+                  "settings:gitlabIntegration.connectionNamePlaceholder",
+                )}
+                value={oauthName}
+              />
+              <p className="text-muted-foreground text-xs">
+                {t("settings:gitlabIntegration.oauthHint", {
+                  url: oauthAvailability.publicUrl,
+                })}
+              </p>
+            </div>
+            <Button
+              disabled={!oauthName.trim() || oauthPendingId !== null}
+              type="submit"
+            >
+              {oauthPendingId === "new" ? (
+                <Loader2 className="size-4 animate-spin" />
+              ) : (
+                <ShieldCheck className="size-4" />
+              )}
+              {t("settings:gitlabIntegration.connectOAuth")}
+            </Button>
+          </form>
         )}
 
         <form

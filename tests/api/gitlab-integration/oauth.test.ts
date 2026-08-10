@@ -2,6 +2,7 @@ import { createHash } from "node:crypto";
 import { afterEach, describe, expect, it } from "vitest";
 import {
   createGitLabOAuthPkce,
+  getGitLabOAuthAvailability,
   getGitLabOAuthConfig,
   gitLabOAuthCallbackHtml,
 } from "../../../apps/api/src/gitlab-integration/oauth";
@@ -45,6 +46,10 @@ describe("GitLab OAuth configuration", () => {
   it("fails closed when the server-owned OAuth app is incomplete", () => {
     delete process.env.GITLAB_OAUTH_CLIENT_SECRET;
     expect(() => getGitLabOAuthConfig()).toThrow(/not configured/);
+    expect(getGitLabOAuthAvailability()).toEqual({
+      enabled: false,
+      publicUrl: null,
+    });
   });
 });
 
