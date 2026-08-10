@@ -1,6 +1,7 @@
 import type { PluginContext, TaskCommentCreatedEvent } from "../../types";
 import { requireGitLabContext } from "../context";
 import { findGitLabIssueLink, parseGitLabIssueIid } from "../link";
+import { formatKaneoGeneratedGitLabNote } from "../notes";
 
 export async function handleTaskCommentCreated(
   event: TaskCommentCreatedEvent,
@@ -12,6 +13,6 @@ export async function handleTaskCommentCreated(
   await client.createIssueNote(
     projectId,
     parseGitLabIssueIid(link.externalId),
-    event.comment,
+    formatKaneoGeneratedGitLabNote(event.comment),
   );
 }

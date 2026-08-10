@@ -2,9 +2,11 @@ import { and, eq } from "drizzle-orm";
 import { beforeEach, describe, expect, it } from "vitest";
 import db, { schema } from "../../apps/api/src/database";
 import { formatIssueBody } from "../../apps/api/src/plugins/github/utils/format";
+import { formatKaneoGeneratedGitLabNote } from "../../apps/api/src/plugins/gitlab/notes";
 import {
   type GitLabWebhookBinding,
   handleGitLabIssueHook,
+  handleGitLabNoteHook,
 } from "../../apps/api/src/plugins/gitlab/webhook-events";
 import { resetTestDatabase } from "./helpers/database";
 import {
@@ -79,6 +81,23 @@ function issueHook(description: string | null = "Imported description") {
       title: "GitLab issue",
       description,
       url: "https://gitlab.example/group/project/-/issues/23",
+    },
+  };
+}
+
+function noteHook(id: number, note: string) {
+  return {
+    object_kind: "note" as const,
+    user: { id: 7, username: "connection-owner", name: "Connection Owner" },
+    project: { id: 17 },
+    issue: { id: 901, iid: 23 },
+    object_attributes: {
+      id,
+      note,
+      noteable_type: "Issue",
+      noteable_iid: 23,
+      url: `https://gitlab.example/group/project/-/issues/23#note_${id}`,
+      system: false,
     },
   };
 }
@@ -162,5 +181,25 @@ describe("API integration: GitLab webhook idempotency", () => {
 
     expect(tasks).toHaveLength(1);
     expect(link?.taskId).toBe(task.id);
+  });
+
+  it("keeps manual owner notes and ignores explicitly marked Kaneo notes", async () => {
+    const { binding } = await createGitLabBinding();
+    binding.connection.metadata = { gitlabUsername: "connection-owner" };
+    await handleGitLabIssueHook(issueHook(), binding);
+
+    await handleGitLabNoteHook(noteHook(701, "Manual owner comment"), binding);
+    await handleGitLabNoteHook(
+      noteHook(702, formatKaneoGeneratedGitLabNote("Kaneo echo")),
+      binding,
+    );
+
+    const activities = await db.select().from(schema.activityTable);
+    expect(activities).toHaveLength(1);
+    expect(activities[0]).toMatchObject({
+      content: "Manual owner comment",
+      externalUserName: "connection-owner",
+      externalSource: "gitlab",
+    });
   });
 });

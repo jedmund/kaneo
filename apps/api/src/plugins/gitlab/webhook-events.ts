@@ -24,6 +24,7 @@ import {
 } from "../github/services/task-service";
 import { resolveTargetStatus } from "../github/utils/resolve-column";
 import { parseGitLabLinkMetadata } from "./link";
+import { isKaneoGeneratedGitLabNote } from "./notes";
 
 export type GitLabWebhookBinding = {
   repository: {
@@ -191,12 +192,6 @@ export function extractKaneoTaskId(
 ): string | null {
   const match = description?.match(/<sub>Task:\s*([^<\r\n]+)<\/sub>/u);
   return match?.[1]?.trim() || null;
-}
-
-function connectionUsername(binding: GitLabWebhookBinding) {
-  if (!isRecord(binding.connection.metadata)) return null;
-  const username = binding.connection.metadata.gitlabUsername;
-  return typeof username === "string" ? username : null;
 }
 
 async function publishStatusChange(
@@ -553,7 +548,7 @@ export async function handleGitLabNoteHook(
   if (
     payload.object_attributes.system ||
     payload.object_attributes.noteable_type !== "Issue" ||
-    payload.user?.username === connectionUsername(binding)
+    isKaneoGeneratedGitLabNote(payload.object_attributes.note)
   ) {
     return;
   }

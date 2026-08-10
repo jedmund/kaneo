@@ -24,6 +24,7 @@ import type {
   GitLabLabel,
   GitLabMergeRequest,
 } from "../plugins/gitlab/client";
+import { isKaneoGeneratedGitLabNote } from "../plugins/gitlab/notes";
 import {
   extractGitLabTaskNumber,
   stripKaneoTaskMarker,
@@ -139,19 +140,8 @@ async function importNotes(
     binding.providerRepositoryId,
     issueIid,
   );
-  const metadata =
-    binding.connection.metadata &&
-    typeof binding.connection.metadata === "object" &&
-    !Array.isArray(binding.connection.metadata)
-      ? (binding.connection.metadata as Record<string, unknown>)
-      : {};
-  const connectionUsername =
-    typeof metadata.gitlabUsername === "string"
-      ? metadata.gitlabUsername
-      : null;
-
   for (const note of notes) {
-    if (note.system || note.author?.username === connectionUsername) continue;
+    if (note.system || isKaneoGeneratedGitLabNote(note.body)) continue;
     const externalUrl = `${binding.webUrl}/-/issues/${issueIid}#note_${note.id}`;
     await db
       .insert(activityTable)
