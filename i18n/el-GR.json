@@ -797,7 +797,9 @@
 				"commentOnDisabled": "Τα σχόλια με σύνδεσμο εργασίας στα νέα issues είναι απενεργοποιημένα",
 				"settingsUpdateError": "Αποτυχία ενημέρωσης ενσωμάτωσης Gitea",
 				"secretCopied": "Copied",
-				"unableToCopySecret": "Δεν ήταν δυνατή η αντιγραφή του μυστικού"
+				"unableToCopySecret": "Δεν ήταν δυνατή η αντιγραφή του μυστικού",
+				"attachError": "Failed to attach Gitea repository",
+				"repositoryAttached": "Gitea repository attached"
 			},
 			"webhookShow": "Show",
 			"webhookHide": "Hide",
@@ -842,7 +844,21 @@
 			"searchRepos": "Search…",
 			"browseNeedsCredentials": "Εισαγάγετε URL και token Gitea για περιήγηση",
 			"loadingRepos": "Φόρτωση αποθετηρίων…",
-			"retry": "Retry"
+			"retry": "Retry",
+			"addRepository": "Add repository",
+			"addRepositoryHint": "Choose a repository available to your Gitea connection, or enter its owner and name manually.",
+			"addRepositoryTitle": "Add Gitea repository",
+			"allRepositoriesAttached": "All available repositories are already attached to this project.",
+			"browseRepositories": "Browse repositories",
+			"detach": "Detach",
+			"manualEntry": "or enter manually",
+			"noBrowseRepositories": "No repositories are available to this Gitea connection.",
+			"noRepositories": "No Gitea repositories attached to this project.",
+			"noRepositoryMatches": "No repositories match your search.",
+			"openRepository": "Open {{repository}} in Gitea",
+			"repositoriesHint": "Tasks can target any attached Gitea repository.",
+			"repositoriesTitle": "Attached repositories",
+			"usingStoredToken": "Using stored token {{token}}. Enter a new token only to replace it."
 		},
 		"slackIntegration": {
 			"channelHint": "Προαιρετική ετικέτα για τη δική σας αναφορά. Το Slack ελέγχει το πραγματικό κανάλι προορισμού από τη ρύθμιση του webhook.",

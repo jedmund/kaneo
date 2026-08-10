@@ -797,7 +797,9 @@
 				"commentOnDisabled": "Комментарии со ссылками на задачи в новых issues отключены",
 				"settingsUpdateError": "Не удалось обновить интеграцию с Gitea",
 				"secretCopied": "Скопировано",
-				"unableToCopySecret": "Не удалось скопировать секрет"
+				"unableToCopySecret": "Не удалось скопировать секрет",
+				"attachError": "Failed to attach Gitea repository",
+				"repositoryAttached": "Gitea repository attached"
 			},
 			"webhookShow": "Показать",
 			"webhookHide": "Скрыть",
@@ -842,7 +844,21 @@
 			"searchRepos": "Поиск…",
 			"browseNeedsCredentials": "Введите URL Gitea и токен для просмотра",
 			"loadingRepos": "Загрузка репозиториев…",
-			"retry": "Повторить"
+			"retry": "Повторить",
+			"addRepository": "Add repository",
+			"addRepositoryHint": "Choose a repository available to your Gitea connection, or enter its owner and name manually.",
+			"addRepositoryTitle": "Add Gitea repository",
+			"allRepositoriesAttached": "All available repositories are already attached to this project.",
+			"browseRepositories": "Browse repositories",
+			"detach": "Detach",
+			"manualEntry": "or enter manually",
+			"noBrowseRepositories": "No repositories are available to this Gitea connection.",
+			"noRepositories": "No Gitea repositories attached to this project.",
+			"noRepositoryMatches": "No repositories match your search.",
+			"openRepository": "Open {{repository}} in Gitea",
+			"repositoriesHint": "Tasks can target any attached Gitea repository.",
+			"repositoriesTitle": "Attached repositories",
+			"usingStoredToken": "Using stored token {{token}}. Enter a new token only to replace it."
 		},
 		"slackIntegration": {
 			"validation": {

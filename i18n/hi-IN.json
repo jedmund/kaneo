@@ -959,7 +959,9 @@
 				"commentOnDisabled": "नई issues पर कार्य लिंक टिप्पणियाँ बंद हैं",
 				"settingsUpdateError": "Gitea एकीकरण अपडेट करने में विफल",
 				"secretCopied": "कॉपी किया",
-				"unableToCopySecret": "सीक्रेट कॉपी करने में असमर्थ"
+				"unableToCopySecret": "सीक्रेट कॉपी करने में असमर्थ",
+				"attachError": "Failed to attach Gitea repository",
+				"repositoryAttached": "Gitea repository attached"
 			},
 			"webhookShow": "दिखाएँ",
 			"webhookHide": "छिपाएँ",
@@ -1004,7 +1006,21 @@
 			"searchRepos": "खोजें…",
 			"browseNeedsCredentials": "ब्राउज़ करने के लिए Gitea URL और टोकन दर्ज करें",
 			"loadingRepos": "रिपॉज़िटरीज़ लोड हो रही हैं…",
-			"retry": "पुनः प्रयास करें"
+			"retry": "पुनः प्रयास करें",
+			"addRepository": "Add repository",
+			"addRepositoryHint": "Choose a repository available to your Gitea connection, or enter its owner and name manually.",
+			"addRepositoryTitle": "Add Gitea repository",
+			"allRepositoriesAttached": "All available repositories are already attached to this project.",
+			"browseRepositories": "Browse repositories",
+			"detach": "Detach",
+			"manualEntry": "or enter manually",
+			"noBrowseRepositories": "No repositories are available to this Gitea connection.",
+			"noRepositories": "No Gitea repositories attached to this project.",
+			"noRepositoryMatches": "No repositories match your search.",
+			"openRepository": "Open {{repository}} in Gitea",
+			"repositoriesHint": "Tasks can target any attached Gitea repository.",
+			"repositoriesTitle": "Attached repositories",
+			"usingStoredToken": "Using stored token {{token}}. Enter a new token only to replace it."
 		},
 		"slackIntegration": {
 			"validation": {
