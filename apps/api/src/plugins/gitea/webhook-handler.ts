@@ -75,13 +75,32 @@ function isLabelPayload(
   return hasRepository(payload);
 }
 
+function payloadRepositoryIdentity(payload: Record<string, unknown>) {
+  if (!isRecord(payload.repository)) return null;
+  const repository = payload.repository;
+  const id =
+    typeof repository.id === "number" || typeof repository.id === "string"
+      ? String(repository.id)
+      : null;
+  const fullName =
+    typeof repository.full_name === "string"
+      ? repository.full_name
+      : isRecord(repository.owner) &&
+          (typeof repository.owner.login === "string" ||
+            typeof repository.owner.username === "string") &&
+          typeof repository.name === "string"
+        ? `${repository.owner.login ?? repository.owner.username}/${repository.name}`
+        : null;
+  return { id, fullName: fullName?.toLowerCase() ?? null };
+}
+
 export async function handleGiteaWebhookRequest(
   repositoryOrIntegrationId: string,
   rawBody: string,
   signatureHeader: string | undefined,
   eventHeader: string | undefined,
 ): Promise<{ success: boolean; error?: string }> {
-  const repository = await db.query.integrationRepositoryTable.findFirst({
+  let repository = await db.query.integrationRepositoryTable.findFirst({
     where: eq(integrationRepositoryTable.id, repositoryOrIntegrationId),
     with: { integration: true },
   });
@@ -90,6 +109,37 @@ export async function handleGiteaWebhookRequest(
     (await db.query.integrationTable.findFirst({
       where: eq(integrationTable.id, repositoryOrIntegrationId),
     }));
+
+  let payload: Record<string, unknown>;
+  try {
+    payload = JSON.parse(rawBody) as Record<string, unknown>;
+  } catch {
+    return { success: false, error: "Invalid JSON payload" };
+  }
+
+  // Existing hooks keep calling /webhook/:integrationId after migration.
+  // Resolve that legacy URL to the repository row that now owns the secret.
+  if (!repository && integration?.type === "gitea") {
+    const candidates = await db.query.integrationRepositoryTable.findMany({
+      where: eq(integrationRepositoryTable.integrationId, integration.id),
+      with: { integration: true },
+    });
+    const identity = payloadRepositoryIdentity(payload);
+    repository =
+      candidates.find(
+        (candidate) =>
+          candidate.provider === "gitea" &&
+          candidate.isActive &&
+          ((identity?.id && candidate.providerRepositoryId === identity.id) ||
+            (identity?.fullName &&
+              candidate.fullPath.toLowerCase() === identity.fullName)),
+      ) ??
+      (candidates.length === 1 &&
+      candidates[0]?.provider === "gitea" &&
+      candidates[0].isActive
+        ? candidates[0]
+        : undefined);
+  }
 
   if (
     integration?.type !== "gitea" ||
@@ -120,13 +170,6 @@ export async function handleGiteaWebhookRequest(
 
   if (!event) {
     return { success: false, error: "Missing event name" };
-  }
-
-  let payload: Record<string, unknown>;
-  try {
-    payload = JSON.parse(rawBody) as Record<string, unknown>;
-  } catch {
-    return { success: false, error: "Invalid JSON payload" };
   }
 
   try {
