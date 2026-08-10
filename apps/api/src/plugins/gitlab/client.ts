@@ -406,7 +406,9 @@ export function createGitLabClient(options: GitLabRequestOptions) {
     async listIssues(projectId: string | number, state = "opened") {
       return requestAll<GitLabIssue>(`${projectPath(projectId)}/issues`, {
         state,
-        order_by: "iid",
+        // GitLab does not accept `iid` as an Issues API order field. Use a
+        // stable field supported by both the Issues and Merge Requests APIs.
+        order_by: "created_at",
         sort: "asc",
       });
     },
@@ -501,7 +503,7 @@ export function createGitLabClient(options: GitLabRequestOptions) {
     async listMergeRequests(projectId: string | number, state = "opened") {
       return requestAll<GitLabMergeRequest>(
         `${projectPath(projectId)}/merge_requests`,
-        { state, order_by: "iid", sort: "asc" },
+        { state, order_by: "created_at", sort: "asc" },
       );
     },
 

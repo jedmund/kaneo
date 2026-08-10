@@ -231,4 +231,32 @@ describe("GitLab pagination", () => {
     expect(fetchMock.mock.calls[0]?.[0]).toContain("page=1&per_page=100");
     expect(fetchMock.mock.calls[1]?.[0]).toContain("page=2&per_page=100");
   });
+
+  it("uses ordering supported by both issue and merge-request APIs", async () => {
+    process.env.KANEO_ALLOW_PRIVATE_WEBHOOK_DESTINATIONS = "true";
+    const fetchMock = vi.spyOn(globalThis, "fetch").mockImplementation(
+      async () =>
+        new Response("[]", {
+          status: 200,
+          headers: { "x-next-page": "" },
+        }),
+    );
+
+    const client = createGitLabClient({
+      publicUrl: "https://gitlab.example",
+      auth: { type: "token", accessToken: "token" },
+    });
+    await client.listIssues(23, "opened");
+    await client.listMergeRequests(23, "opened");
+
+    expect(fetchMock.mock.calls[0]?.[0]).toContain(
+      "/issues?state=opened&order_by=created_at&sort=asc",
+    );
+    expect(fetchMock.mock.calls[1]?.[0]).toContain(
+      "/merge_requests?state=opened&order_by=created_at&sort=asc",
+    );
+    expect(
+      fetchMock.mock.calls.flatMap((call) => String(call[0])),
+    ).not.toContain("order_by=iid");
+  });
 });
