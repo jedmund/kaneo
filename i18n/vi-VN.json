@@ -883,7 +883,9 @@
 				"importError": "Không thể nhập issue",
 				"commentOnEnabled": "Kaneo sẽ bình luận kèm liên kết công việc trên các issue mới",
 				"commentOnDisabled": "Đã tắt bình luận liên kết công việc trên issue mới",
-				"settingsUpdateError": "Không thể cập nhật tích hợp GitHub"
+				"settingsUpdateError": "Không thể cập nhật tích hợp GitHub",
+				"attachError": "Failed to attach GitHub repository",
+				"repositoryAttached": "GitHub repository attached"
 			},
 			"connectionStatus": "Trạng thái kết nối",
 			"connectedActive": "Kho lưu trữ đã kết nối và đang hoạt động",
@@ -919,7 +921,16 @@
 			"importSectionHint": "Nhập các issue hiện có từ kho lưu trữ GitHub của bạn thành công việc",
 			"importing": "Đang nhập...",
 			"importIssues": "Nhập issue",
-			"importDisabledHint": "Hoàn tất cấu hình kho lưu trữ ở trên để bật tính năng nhập"
+			"importDisabledHint": "Hoàn tất cấu hình kho lưu trữ ở trên để bật tính năng nhập",
+			"addRepository": "Add repository",
+			"addRepositoryHint": "Choose a repository where the GitHub App is installed, or enter its owner and name manually.",
+			"addRepositoryTitle": "Add GitHub repository",
+			"browseRepositories": "Browse repositories",
+			"detach": "Detach",
+			"manualEntry": "or enter manually",
+			"noRepositories": "No GitHub repositories attached to this project.",
+			"repositoriesHint": "Tasks can target any attached GitHub repository.",
+			"repositoriesTitle": "Attached repositories"
 		},
 		"giteaIntegration": {
 			"validation": {
@@ -948,7 +959,9 @@
 				"commentOnDisabled": "Đã tắt bình luận liên kết công việc trên issue mới",
 				"settingsUpdateError": "Không thể cập nhật tích hợp Gitea",
 				"secretCopied": "Đã sao chép",
-				"unableToCopySecret": "Không thể sao chép khóa bí mật"
+				"unableToCopySecret": "Không thể sao chép khóa bí mật",
+				"attachError": "Failed to attach Gitea repository",
+				"repositoryAttached": "Gitea repository attached"
 			},
 			"webhookShow": "Hiện",
 			"webhookHide": "Ẩn",
@@ -993,7 +1006,21 @@
 			"searchRepos": "Tìm kiếm…",
 			"browseNeedsCredentials": "Nhập URL và token Gitea để duyệt",
 			"loadingRepos": "Đang tải kho lưu trữ…",
-			"retry": "Thử lại"
+			"retry": "Thử lại",
+			"addRepository": "Add repository",
+			"addRepositoryHint": "Choose a repository available to your Gitea connection, or enter its owner and name manually.",
+			"addRepositoryTitle": "Add Gitea repository",
+			"allRepositoriesAttached": "All available repositories are already attached to this project.",
+			"browseRepositories": "Browse repositories",
+			"detach": "Detach",
+			"manualEntry": "or enter manually",
+			"noBrowseRepositories": "No repositories are available to this Gitea connection.",
+			"noRepositories": "No Gitea repositories attached to this project.",
+			"noRepositoryMatches": "No repositories match your search.",
+			"openRepository": "Open {{repository}} in Gitea",
+			"repositoriesHint": "Tasks can target any attached Gitea repository.",
+			"repositoriesTitle": "Attached repositories",
+			"usingStoredToken": "Using stored token {{token}}. Enter a new token only to replace it."
 		},
 		"slackIntegration": {
 			"validation": {
@@ -1179,7 +1206,9 @@
 			"relativeJustNow": "vừa xong",
 			"relativeMinutesAgo": "{{count}} phút trước",
 			"relativeHoursAgo": "{{count}} giờ trước",
-			"relativeDaysAgo": "{{count}} ngày trước"
+			"relativeDaysAgo": "{{count}} ngày trước",
+			"allAttachedHint": "Every repository available to this GitHub App is already attached to the project.",
+			"allAttachedTitle": "All repositories are attached"
 		},
 		"tasksImportExport": {
 			"exportTasks": "Xuất công việc",

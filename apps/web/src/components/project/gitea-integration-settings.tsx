@@ -6,7 +6,7 @@ import {
   GitBranch,
   Import,
   Link,
-  RefreshCw,
+  Plus,
   Unlink,
   XCircle,
 } from "lucide-react";
@@ -18,8 +18,19 @@ import { GiteaRepositoryBrowserModal } from "@/components/project/gitea-reposito
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
+  Dialog,
+  DialogClose,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogPanel,
+  DialogPopup,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import {
   Form,
   FormControl,
+  FormDescription,
   FormField,
   FormItem,
   FormLabel,
@@ -31,7 +42,6 @@ import { Switch } from "@/components/ui/switch";
 import type { VerifyGiteaAccessResponse } from "@/fetchers/gitea-integration/verify-gitea-access";
 import {
   useCreateGiteaIntegration,
-  useDeleteGiteaIntegration,
   useDetachGiteaRepository,
   useVerifyGiteaAccess,
 } from "@/hooks/mutations/gitea-integration/use-create-gitea-integration";
@@ -69,6 +79,10 @@ function createVerificationSnapshot(
     repositoryOwner: values.repositoryOwner.trim(),
     repositoryName: values.repositoryName.trim(),
   };
+}
+
+function normalizeBaseUrlForComparison(value: string) {
+  return value.trim().replace(/\/+$/, "");
 }
 
 export function GiteaIntegrationSettings({ projectId }: { projectId: string }) {
@@ -115,8 +129,6 @@ export function GiteaIntegrationSettings({ projectId }: { projectId: string }) {
   } = useGetGiteaIntegration(projectId);
   const { mutateAsync: createIntegration, isPending: isCreating } =
     useCreateGiteaIntegration();
-  const { mutateAsync: deleteIntegration, isPending: isDeleting } =
-    useDeleteGiteaIntegration();
   const { mutateAsync: detachRepository, isPending: isDetaching } =
     useDetachGiteaRepository();
   const { mutateAsync: verifyAccess, isPending: isVerifying } =
@@ -128,6 +140,8 @@ export function GiteaIntegrationSettings({ projectId }: { projectId: string }) {
 
   const [verificationResult, setVerificationResult] =
     React.useState<GiteaVerificationState | null>(null);
+  const [addRepositoryDialogOpen, setAddRepositoryDialogOpen] =
+    React.useState(false);
   const [showRepositoryBrowser, setShowRepositoryBrowser] =
     React.useState(false);
   const [shownWebhookSecret, setShownWebhookSecret] = React.useState<
@@ -150,39 +164,30 @@ export function GiteaIntegrationSettings({ projectId }: { projectId: string }) {
     },
   });
 
-  const resetIntegrationForm = React.useCallback(() => {
-    if (!integration?.baseUrl) {
-      return;
-    }
-
+  const resetAddRepositoryForm = React.useCallback(() => {
     form.reset({
-      baseUrl: integration.baseUrl,
+      baseUrl: integration?.baseUrl ?? "",
       accessToken: "",
-      repositoryOwner: integration.repositoryOwner,
-      repositoryName: integration.repositoryName,
+      repositoryOwner: integration?.repositoryOwner ?? "",
+      repositoryName: "",
     });
-    // Intentionally clear verify state after reload: import must not run until the user re-verifies (token/URL may have changed).
-    // Clear verify state when the form reloads so import cannot run against stale credentials.
     setVerificationResult(null);
-    setShownWebhookSecret(null);
-  }, [
-    form.reset,
-    integration?.baseUrl,
-    integration?.repositoryOwner,
-    integration?.repositoryName,
-  ]);
+  }, [form, integration?.baseUrl, integration?.repositoryOwner]);
 
-  React.useEffect(() => {
-    resetIntegrationForm();
-  }, [resetIntegrationForm]);
+  const handleAddRepositoryDialogOpenChange = (open: boolean) => {
+    setAddRepositoryDialogOpen(open);
+    if (open) {
+      resetAddRepositoryForm();
+    } else {
+      setShowRepositoryBrowser(false);
+      setVerificationResult(null);
+    }
+  };
 
   const runVerify = React.useCallback(
     async (data: GiteaIntegrationFormValues, showToast = true) => {
       const token = data.accessToken.trim();
-      if (!token && integration) {
-        return;
-      }
-      if (!token && !integration) {
+      if (!token) {
         if (showToast) {
           toast.error(t("settings:giteaIntegration.toast.tokenRequiredVerify"));
         }
@@ -222,7 +227,7 @@ export function GiteaIntegrationSettings({ projectId }: { projectId: string }) {
         setVerificationResult(null);
       }
     },
-    [verifyAccess, integration, projectId, t],
+    [verifyAccess, projectId, t],
   );
 
   const baseUrl = form.watch("baseUrl");
@@ -238,6 +243,11 @@ export function GiteaIntegrationSettings({ projectId }: { projectId: string }) {
         repositoryName,
       }),
     [baseUrl, accessToken, repositoryOwner, repositoryName],
+  );
+  const canUseStoredCredential = Boolean(
+    integration?.baseUrl &&
+      normalizeBaseUrlForComparison(baseUrl) ===
+        normalizeBaseUrlForComparison(integration.baseUrl),
   );
 
   React.useEffect(() => {
@@ -261,6 +271,7 @@ export function GiteaIntegrationSettings({ projectId }: { projectId: string }) {
 
   React.useEffect(() => {
     if (
+      !addRepositoryDialogOpen ||
       !baseUrl ||
       !repositoryOwner ||
       !repositoryName ||
@@ -279,6 +290,7 @@ export function GiteaIntegrationSettings({ projectId }: { projectId: string }) {
       window.clearTimeout(timeoutId);
     };
   }, [
+    addRepositoryDialogOpen,
     baseUrl,
     repositoryOwner,
     repositoryName,
@@ -290,7 +302,7 @@ export function GiteaIntegrationSettings({ projectId }: { projectId: string }) {
 
   const onSubmit = async (data: GiteaIntegrationFormValues) => {
     try {
-      if (!data.accessToken.trim() && !integration) {
+      if (!data.accessToken.trim() && !canUseStoredCredential) {
         toast.error(t("settings:giteaIntegration.toast.tokenRequired"));
         return;
       }
@@ -331,33 +343,14 @@ export function GiteaIntegrationSettings({ projectId }: { projectId: string }) {
           repositoryName: data.repositoryName,
         },
       });
-      form.setValue("accessToken", "");
-      toast.success(t("settings:giteaIntegration.toast.updated"));
-    } catch (error) {
-      toast.error(
-        error instanceof Error
-          ? error.message
-          : t("settings:giteaIntegration.toast.updateError"),
-      );
-    }
-  };
-
-  const handleDelete = async () => {
-    try {
-      await deleteIntegration(projectId);
-      form.reset({
-        baseUrl: "",
-        accessToken: "",
-        repositoryOwner: "",
-        repositoryName: "",
-      });
+      toast.success(t("settings:giteaIntegration.toast.repositoryAttached"));
+      setAddRepositoryDialogOpen(false);
       setVerificationResult(null);
-      toast.success(t("settings:giteaIntegration.toast.removed"));
     } catch (error) {
       toast.error(
         error instanceof Error
           ? error.message
-          : t("settings:giteaIntegration.toast.removeError"),
+          : t("settings:giteaIntegration.toast.attachError"),
       );
     }
   };
@@ -468,17 +461,6 @@ export function GiteaIntegrationSettings({ projectId }: { projectId: string }) {
   }
 
   const isConnected = !!integration && integration.isActive;
-  const hasVerifiedCurrentValues =
-    verificationResult?.result.isInstalled &&
-    verificationResult.result.hasRequiredPermissions &&
-    verificationResult.verified.baseUrl ===
-      currentVerificationSnapshot.baseUrl &&
-    verificationResult.verified.accessToken ===
-      currentVerificationSnapshot.accessToken &&
-    verificationResult.verified.repositoryOwner ===
-      currentVerificationSnapshot.repositoryOwner &&
-    verificationResult.verified.repositoryName ===
-      currentVerificationSnapshot.repositoryName;
   const repositories = integration?.repositories ?? [];
 
   return (
@@ -512,113 +494,130 @@ export function GiteaIntegrationSettings({ projectId }: { projectId: string }) {
           )}
         </div>
 
-        {isConnected && integration && (
-          <>
-            <Separator />
-            <div className="space-y-3">
-              <div className="space-y-0.5">
-                <p className="text-sm font-medium">
-                  {t("settings:giteaIntegration.repository")}
-                </p>
-                <p className="text-xs text-muted-foreground">
-                  {t("settings:giteaIntegration.repositoryHint")}
-                </p>
-              </div>
-              <div className="space-y-2">
-                {repositories.map((repository) => (
-                  <div
-                    key={repository.id}
-                    className="space-y-3 rounded-md border border-border bg-background p-3"
-                  >
-                    <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-                      <a
-                        aria-label={repository.fullPath}
-                        className="inline-flex min-w-0 max-w-full items-center gap-1.5 font-medium text-sm transition-colors hover:text-primary"
-                        href={repository.webUrl}
-                        rel="noopener noreferrer"
-                        target="_blank"
+        <Separator />
+        <div className="space-y-3">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <div className="space-y-0.5">
+              <p className="text-sm font-medium">
+                {t("settings:giteaIntegration.repositoriesTitle")}
+              </p>
+              <p className="text-xs text-muted-foreground">
+                {t("settings:giteaIntegration.repositoriesHint")}
+              </p>
+            </div>
+            <Button
+              onClick={() => handleAddRepositoryDialogOpenChange(true)}
+              size="sm"
+              type="button"
+              variant="outline"
+            >
+              <Plus aria-hidden="true" className="size-4" />
+              {t("settings:giteaIntegration.addRepository")}
+            </Button>
+          </div>
+
+          {repositories.length === 0 ? (
+            <p className="rounded-md border border-border border-dashed bg-background/50 p-4 text-center text-muted-foreground text-sm">
+              {t("settings:giteaIntegration.noRepositories")}
+            </p>
+          ) : (
+            <div className="space-y-2">
+              {repositories.map((repository) => (
+                <div
+                  key={repository.id}
+                  className="space-y-3 rounded-md border border-border bg-background p-3"
+                >
+                  <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                    <a
+                      aria-label={repository.fullPath}
+                      className="inline-flex min-w-0 max-w-full items-center gap-1.5 font-medium text-sm transition-colors hover:text-primary"
+                      href={repository.webUrl}
+                      rel="noopener noreferrer"
+                      target="_blank"
+                    >
+                      <GitBranch
+                        aria-hidden="true"
+                        className="size-4 shrink-0"
+                      />
+                      <span className="truncate font-medium">
+                        {repository.fullPath}
+                      </span>
+                      <ExternalLink
+                        aria-hidden="true"
+                        className="size-3 shrink-0"
+                      />
+                    </a>
+                    <div className="flex shrink-0 justify-end gap-1">
+                      <Button
+                        disabled={isImporting || isDetaching}
+                        loading={importingRepositoryId === repository.id}
+                        onClick={() => handleImportIssues(repository.id)}
+                        size="sm"
+                        type="button"
+                        variant="outline"
                       >
-                        <GitBranch
-                          aria-hidden="true"
-                          className="size-4 shrink-0"
-                        />
-                        <span className="truncate font-medium">
-                          {repository.fullPath}
-                        </span>
-                        <ExternalLink
-                          aria-hidden="true"
-                          className="size-3 shrink-0"
-                        />
-                      </a>
-                      <div className="flex shrink-0 justify-end gap-1">
+                        <Import aria-hidden="true" className="size-3" />
+                        {t("settings:giteaIntegration.importIssues")}
+                      </Button>
+                      <Button
+                        aria-label={`${t("settings:giteaIntegration.detach")} ${repository.fullPath}`}
+                        disabled={isImporting || isDetaching}
+                        loading={detachingRepositoryId === repository.id}
+                        onClick={() => handleDetachRepository(repository.id)}
+                        size="icon-sm"
+                        type="button"
+                        variant="ghost"
+                      >
+                        <Unlink aria-hidden="true" className="size-3" />
+                      </Button>
+                    </div>
+                  </div>
+                  <div className="space-y-2 text-xs">
+                    <code className="block break-all rounded bg-muted px-2 py-1 text-[11px]">
+                      {repository.webhookUrl}
+                    </code>
+                    <div className="flex flex-col gap-2 sm:flex-row sm:items-start">
+                      <code className="block flex-1 break-all rounded bg-muted px-2 py-1 text-[11px]">
+                        {shownWebhookSecret === repository.id
+                          ? repository.webhookSecret
+                          : "••••••••••••••••••••••••••••••••"}
+                      </code>
+                      <div className="flex shrink-0 gap-1 self-end sm:self-start">
                         <Button
-                          disabled={isImporting || isDetaching}
-                          loading={importingRepositoryId === repository.id}
-                          onClick={() => handleImportIssues(repository.id)}
+                          onClick={() =>
+                            setShownWebhookSecret((current) =>
+                              current === repository.id ? null : repository.id,
+                            )
+                          }
                           size="sm"
                           type="button"
                           variant="outline"
                         >
-                          <Import aria-hidden="true" className="size-3" />
-                          {t("settings:giteaIntegration.importIssues")}
+                          {shownWebhookSecret === repository.id
+                            ? t("settings:giteaIntegration.webhookHide")
+                            : t("settings:giteaIntegration.webhookShow")}
                         </Button>
                         <Button
-                          aria-label={`${t("settings:giteaIntegration.disconnect")} ${repository.fullPath}`}
-                          disabled={isImporting || isDetaching}
-                          loading={detachingRepositoryId === repository.id}
-                          onClick={() => handleDetachRepository(repository.id)}
-                          size="icon-sm"
+                          onClick={() =>
+                            handleCopyWebhookSecret(repository.webhookSecret)
+                          }
+                          size="sm"
                           type="button"
-                          variant="ghost"
+                          variant="outline"
                         >
-                          <Unlink aria-hidden="true" className="size-3" />
+                          {t("settings:giteaIntegration.webhookCopy")}
                         </Button>
-                      </div>
-                    </div>
-                    <div className="space-y-2 text-xs">
-                      <code className="block break-all rounded bg-muted px-2 py-1 text-[11px]">
-                        {repository.webhookUrl}
-                      </code>
-                      <div className="flex flex-col gap-2 sm:flex-row sm:items-start">
-                        <code className="block flex-1 break-all rounded bg-muted px-2 py-1 text-[11px]">
-                          {shownWebhookSecret === repository.id
-                            ? repository.webhookSecret
-                            : "••••••••••••••••••••••••••••••••"}
-                        </code>
-                        <div className="flex shrink-0 gap-1 self-end sm:self-start">
-                          <Button
-                            onClick={() =>
-                              setShownWebhookSecret((current) =>
-                                current === repository.id
-                                  ? null
-                                  : repository.id,
-                              )
-                            }
-                            size="sm"
-                            type="button"
-                            variant="outline"
-                          >
-                            {shownWebhookSecret === repository.id
-                              ? t("settings:giteaIntegration.webhookHide")
-                              : t("settings:giteaIntegration.webhookShow")}
-                          </Button>
-                          <Button
-                            onClick={() =>
-                              handleCopyWebhookSecret(repository.webhookSecret)
-                            }
-                            size="sm"
-                            type="button"
-                            variant="outline"
-                          >
-                            {t("settings:giteaIntegration.webhookCopy")}
-                          </Button>
-                        </div>
                       </div>
                     </div>
                   </div>
-                ))}
-              </div>
+                </div>
+              ))}
             </div>
+          )}
+        </div>
+
+        {isConnected && integration && (
+          <>
             <Separator />
             <div className="flex items-center justify-between gap-4">
               <div className="min-w-0 flex-1 space-y-0.5">
@@ -631,6 +630,7 @@ export function GiteaIntegrationSettings({ projectId }: { projectId: string }) {
               </div>
               <Switch
                 checked={integration.commentTaskLinkOnGiteaIssue ?? true}
+                disabled={isUpdatingSettings}
                 onCheckedChange={async (checked) => {
                   try {
                     await updateGiteaSettings({
@@ -654,253 +654,207 @@ export function GiteaIntegrationSettings({ projectId }: { projectId: string }) {
                     );
                   }
                 }}
-                disabled={isUpdatingSettings}
               />
             </div>
           </>
         )}
       </div>
 
-      <div className="space-y-4 border border-border rounded-md p-4 bg-sidebar">
-        <Form {...form}>
-          <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
-            <FormField
-              control={form.control}
-              name="baseUrl"
-              render={({ field }) => (
-                <FormItem>
-                  <div className="flex items-center justify-between gap-4">
-                    <div className="space-y-0.5">
-                      <FormLabel className="text-sm font-medium">
+      <Dialog
+        onOpenChange={handleAddRepositoryDialogOpenChange}
+        open={addRepositoryDialogOpen}
+      >
+        <DialogPopup className="max-w-xl">
+          <Form {...form}>
+            <form className="contents" onSubmit={form.handleSubmit(onSubmit)}>
+              <DialogHeader>
+                <DialogTitle>
+                  {t("settings:giteaIntegration.addRepositoryTitle")}
+                </DialogTitle>
+                <DialogDescription>
+                  {t("settings:giteaIntegration.addRepositoryHint")}
+                </DialogDescription>
+              </DialogHeader>
+              <DialogPanel className="space-y-5">
+                <FormField
+                  control={form.control}
+                  name="baseUrl"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>
                         {t("settings:giteaIntegration.baseUrlLabel")}
                       </FormLabel>
-                      <p className="text-xs text-muted-foreground">
+                      <FormControl>
+                        <Input
+                          disabled={isCreating}
+                          placeholder="https://gitea.example.com"
+                          type="url"
+                          {...field}
+                        />
+                      </FormControl>
+                      <FormDescription>
                         {t("settings:giteaIntegration.baseUrlHint")}
-                      </p>
-                    </div>
-                    <FormControl>
-                      <Input
-                        className="w-72"
-                        placeholder="https://gitea.example.com"
-                        {...field}
-                        disabled={isCreating || isDeleting}
-                      />
-                    </FormControl>
-                  </div>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
+                      </FormDescription>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
 
-            <Separator />
-
-            <FormField
-              control={form.control}
-              name="accessToken"
-              render={({ field }) => (
-                <FormItem>
-                  <div className="flex items-center justify-between gap-4">
-                    <div className="space-y-0.5">
-                      <FormLabel className="text-sm font-medium">
+                <FormField
+                  control={form.control}
+                  name="accessToken"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>
                         {t("settings:giteaIntegration.tokenLabel")}
                       </FormLabel>
-                      <p className="text-xs text-muted-foreground">
-                        {t("settings:giteaIntegration.tokenHint")}
-                        {integration?.maskedAccessToken
-                          ? ` (${t("settings:giteaIntegration.currentToken")}: ${integration.maskedAccessToken})`
-                          : null}
-                      </p>
-                    </div>
-                    <FormControl>
-                      <Input
-                        className="w-72"
-                        type="password"
-                        autoComplete="off"
-                        placeholder={
-                          integration
-                            ? t(
-                                "settings:giteaIntegration.tokenPlaceholderUpdate",
-                              )
-                            : t("settings:giteaIntegration.tokenPlaceholder")
-                        }
-                        {...field}
-                        disabled={isCreating || isDeleting}
-                      />
-                    </FormControl>
-                  </div>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-
-            <Separator />
-
-            <FormField
-              control={form.control}
-              name="repositoryOwner"
-              render={({ field }) => (
-                <FormItem>
-                  <div className="flex items-center justify-between gap-4">
-                    <div className="space-y-0.5">
-                      <FormLabel className="text-sm font-medium">
-                        {t("settings:giteaIntegration.ownerLabel")}
-                      </FormLabel>
-                      <p className="text-xs text-muted-foreground">
-                        {t("settings:giteaIntegration.ownerHint")}
-                      </p>
-                    </div>
-                    <FormControl>
-                      <Input
-                        className="w-64"
-                        {...field}
-                        disabled={isCreating || isDeleting}
-                      />
-                    </FormControl>
-                  </div>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-
-            <Separator />
-
-            <FormField
-              control={form.control}
-              name="repositoryName"
-              render={({ field }) => (
-                <FormItem>
-                  <div className="flex items-center justify-between gap-4">
-                    <div className="space-y-0.5">
-                      <FormLabel className="text-sm font-medium">
-                        {t("settings:giteaIntegration.repoNameLabel")}
-                      </FormLabel>
-                      <p className="text-xs text-muted-foreground">
-                        {t("settings:giteaIntegration.repoNameHint")}
-                      </p>
-                    </div>
-                    <FormControl>
-                      <Input
-                        className="w-64"
-                        {...field}
-                        disabled={isCreating || isDeleting}
-                      />
-                    </FormControl>
-                  </div>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-
-            <Separator />
-
-            <div className="flex items-center justify-between">
-              <div className="space-y-0.5">
-                <p className="text-sm font-medium">
-                  {t("settings:giteaIntegration.actionsTitle")}
-                </p>
-                <p className="text-xs text-muted-foreground">
-                  {t("settings:giteaIntegration.actionsHint")}
-                </p>
-              </div>
-              <div className="flex flex-wrap gap-2">
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  onClick={() => setShowRepositoryBrowser(true)}
-                  className="gap-2"
-                  disabled={!baseUrl}
-                >
-                  <GitBranch className="size-3" />
-                  {t("settings:giteaIntegration.browse")}
-                </Button>
+                      <FormControl>
+                        <Input
+                          autoComplete="off"
+                          disabled={isCreating}
+                          placeholder={
+                            canUseStoredCredential
+                              ? t(
+                                  "settings:giteaIntegration.tokenPlaceholderUpdate",
+                                )
+                              : t("settings:giteaIntegration.tokenPlaceholder")
+                          }
+                          type="password"
+                          {...field}
+                        />
+                      </FormControl>
+                      <FormDescription>
+                        {canUseStoredCredential &&
+                        integration?.maskedAccessToken
+                          ? t("settings:giteaIntegration.usingStoredToken", {
+                              token: integration.maskedAccessToken,
+                            })
+                          : t("settings:giteaIntegration.tokenHint")}
+                      </FormDescription>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
 
                 <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  onClick={() => runVerify(form.getValues())}
+                  className="w-full justify-start"
                   disabled={
-                    isVerifying ||
-                    !form.formState.isValid ||
-                    (!accessToken.trim() && !integration)
+                    !baseUrl || (!accessToken.trim() && !canUseStoredCredential)
                   }
-                  className="gap-2"
+                  onClick={() => setShowRepositoryBrowser(true)}
+                  type="button"
+                  variant="outline"
                 >
-                  <RefreshCw
-                    className={cn("size-3", isVerifying && "animate-spin")}
-                  />
-                  {t("settings:giteaIntegration.verify")}
+                  <GitBranch aria-hidden="true" className="size-4" />
+                  {t("settings:giteaIntegration.browseRepositories")}
                 </Button>
 
+                <div className="relative flex items-center">
+                  <Separator />
+                  <span className="absolute left-1/2 -translate-x-1/2 bg-popover px-2 text-muted-foreground text-xs">
+                    {t("settings:giteaIntegration.manualEntry")}
+                  </span>
+                </div>
+
+                <div className="grid gap-4 sm:grid-cols-2">
+                  <FormField
+                    control={form.control}
+                    name="repositoryOwner"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>
+                          {t("settings:giteaIntegration.ownerLabel")}
+                        </FormLabel>
+                        <FormControl>
+                          <Input
+                            autoComplete="off"
+                            disabled={isCreating}
+                            type="text"
+                            {...field}
+                          />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  <FormField
+                    control={form.control}
+                    name="repositoryName"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>
+                          {t("settings:giteaIntegration.repoNameLabel")}
+                        </FormLabel>
+                        <FormControl>
+                          <Input
+                            autoComplete="off"
+                            disabled={isCreating}
+                            type="text"
+                            {...field}
+                          />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                </div>
+
+                {verificationResult && (
+                  <div
+                    className={cn(
+                      "flex items-start gap-3 rounded-md border p-3 text-sm",
+                      verificationResult.result.isInstalled &&
+                        verificationResult.result.hasRequiredPermissions
+                        ? "border-success/25 bg-success/10"
+                        : verificationResult.result.repositoryExists
+                          ? "border-warning/25 bg-warning/10"
+                          : "border-destructive/25 bg-destructive/10",
+                    )}
+                  >
+                    {verificationResult.result.isInstalled &&
+                    verificationResult.result.hasRequiredPermissions ? (
+                      <CheckCircle className="mt-0.5 size-4 shrink-0 text-success-foreground" />
+                    ) : verificationResult.result.repositoryExists ? (
+                      <AlertTriangle className="mt-0.5 size-4 shrink-0 text-warning-foreground" />
+                    ) : (
+                      <XCircle className="mt-0.5 size-4 shrink-0 text-destructive-foreground" />
+                    )}
+                    <p className="font-medium">
+                      {verificationResult.result.message}
+                    </p>
+                  </div>
+                )}
+              </DialogPanel>
+              <DialogFooter>
+                <DialogClose
+                  render={<Button type="button" variant="outline" />}
+                >
+                  {t("common:actions.cancel")}
+                </DialogClose>
                 <Button
-                  type="submit"
-                  size="sm"
                   disabled={
                     isCreating ||
-                    isDeleting ||
+                    isVerifying ||
                     !form.formState.isValid ||
-                    (verificationResult ? !hasVerifiedCurrentValues : false)
+                    (!accessToken.trim() && !canUseStoredCredential)
                   }
-                  className="gap-2"
+                  loading={isCreating || isVerifying}
+                  type="submit"
                 >
-                  <Link className="size-3" />
-                  {isConnected
-                    ? t("settings:giteaIntegration.update")
-                    : t("settings:giteaIntegration.connect")}
+                  <Link aria-hidden="true" className="size-4" />
+                  {t("settings:giteaIntegration.addRepository")}
                 </Button>
-
-                {isConnected && (
-                  <Button
-                    type="button"
-                    variant="destructive"
-                    size="sm"
-                    onClick={handleDelete}
-                    disabled={isCreating || isDeleting}
-                    className="gap-2"
-                  >
-                    <Unlink className="size-3" />
-                    {t("settings:giteaIntegration.disconnect")}
-                  </Button>
-                )}
-              </div>
-            </div>
-          </form>
-        </Form>
-
-        {verificationResult && (
-          <>
-            <Separator />
-            <div
-              className={cn(
-                "flex items-start gap-3 p-3 border rounded-md text-sm",
-                verificationResult.result.isInstalled &&
-                  verificationResult.result.hasRequiredPermissions
-                  ? "border-success/25 bg-success/10"
-                  : verificationResult.result.repositoryExists
-                    ? "border-warning/25 bg-warning/10"
-                    : "border-destructive/25 bg-destructive/10",
-              )}
-            >
-              {verificationResult.result.isInstalled &&
-              verificationResult.result.hasRequiredPermissions ? (
-                <CheckCircle className="mt-0.5 h-4 w-4 flex-shrink-0 text-success-foreground" />
-              ) : verificationResult.result.repositoryExists ? (
-                <AlertTriangle className="mt-0.5 h-4 w-4 flex-shrink-0 text-warning-foreground" />
-              ) : (
-                <XCircle className="mt-0.5 h-4 w-4 flex-shrink-0 text-destructive-foreground" />
-              )}
-              <div className="flex-1">
-                <p className="font-medium">
-                  {verificationResult.result.message}
-                </p>
-              </div>
-            </div>
-          </>
-        )}
-      </div>
+              </DialogFooter>
+            </form>
+          </Form>
+        </DialogPopup>
+      </Dialog>
 
       <GiteaRepositoryBrowserModal
+        excludedRepositories={repositories.map(
+          (repository) => repository.fullPath,
+        )}
+        hasStoredCredential={canUseStoredCredential}
         open={showRepositoryBrowser}
         projectId={projectId}
         onOpenChange={setShowRepositoryBrowser}

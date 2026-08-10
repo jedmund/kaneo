@@ -721,7 +721,9 @@
 				"importError": "이슈 가져오기에 실패했습니다",
 				"commentOnEnabled": "Kaneo가 새 이슈에 작업 링크를 포함한 댓글을 게시합니다",
 				"commentOnDisabled": "새 이슈의 작업 링크 댓글이 꺼져 있습니다",
-				"settingsUpdateError": "GitHub 연동 업데이트에 실패했습니다"
+				"settingsUpdateError": "GitHub 연동 업데이트에 실패했습니다",
+				"attachError": "Failed to attach GitHub repository",
+				"repositoryAttached": "GitHub repository attached"
 			},
 			"connectionStatus": "연결 상태",
 			"connectedActive": "저장소가 연결되어 활성 상태입니다",
@@ -757,7 +759,16 @@
 			"importSectionHint": "GitHub 저장소의 기존 이슈를 작업으로 가져옵니다",
 			"importing": "가져오는 중...",
 			"importIssues": "이슈 가져오기",
-			"importDisabledHint": "가져오기를 활성화하려면 위의 저장소 구성을 완료하세요"
+			"importDisabledHint": "가져오기를 활성화하려면 위의 저장소 구성을 완료하세요",
+			"addRepository": "Add repository",
+			"addRepositoryHint": "Choose a repository where the GitHub App is installed, or enter its owner and name manually.",
+			"addRepositoryTitle": "Add GitHub repository",
+			"browseRepositories": "Browse repositories",
+			"detach": "Detach",
+			"manualEntry": "or enter manually",
+			"noRepositories": "No GitHub repositories attached to this project.",
+			"repositoriesHint": "Tasks can target any attached GitHub repository.",
+			"repositoriesTitle": "Attached repositories"
 		},
 		"giteaIntegration": {
 			"validation": {
@@ -786,7 +797,9 @@
 				"commentOnDisabled": "새 이슈의 작업 링크 댓글이 꺼져 있습니다",
 				"settingsUpdateError": "Gitea 연동 업데이트에 실패했습니다",
 				"secretCopied": "복사됨",
-				"unableToCopySecret": "시크릿을 복사할 수 없습니다"
+				"unableToCopySecret": "시크릿을 복사할 수 없습니다",
+				"attachError": "Failed to attach Gitea repository",
+				"repositoryAttached": "Gitea repository attached"
 			},
 			"webhookShow": "표시",
 			"webhookHide": "숨기기",
@@ -831,7 +844,21 @@
 			"searchRepos": "검색…",
 			"browseNeedsCredentials": "찾아보려면 Gitea URL과 토큰을 입력하세요",
 			"loadingRepos": "저장소 로딩 중…",
-			"retry": "재시도"
+			"retry": "재시도",
+			"addRepository": "Add repository",
+			"addRepositoryHint": "Choose a repository available to your Gitea connection, or enter its owner and name manually.",
+			"addRepositoryTitle": "Add Gitea repository",
+			"allRepositoriesAttached": "All available repositories are already attached to this project.",
+			"browseRepositories": "Browse repositories",
+			"detach": "Detach",
+			"manualEntry": "or enter manually",
+			"noBrowseRepositories": "No repositories are available to this Gitea connection.",
+			"noRepositories": "No Gitea repositories attached to this project.",
+			"noRepositoryMatches": "No repositories match your search.",
+			"openRepository": "Open {{repository}} in Gitea",
+			"repositoriesHint": "Tasks can target any attached Gitea repository.",
+			"repositoriesTitle": "Attached repositories",
+			"usingStoredToken": "Using stored token {{token}}. Enter a new token only to replace it."
 		},
 		"slackIntegration": {
 			"validation": {
@@ -1017,7 +1044,9 @@
 			"relativeJustNow": "방금 전",
 			"relativeMinutesAgo": "{{count}}분 전",
 			"relativeHoursAgo": "{{count}}시간 전",
-			"relativeDaysAgo": "{{count}}일 전"
+			"relativeDaysAgo": "{{count}}일 전",
+			"allAttachedHint": "Every repository available to this GitHub App is already attached to the project.",
+			"allAttachedTitle": "All repositories are attached"
 		},
 		"tasksImportExport": {
 			"exportTasks": "작업 내보내기",

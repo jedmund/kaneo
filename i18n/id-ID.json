@@ -721,7 +721,9 @@
 				"importError": "Gagal mengimpor issue",
 				"commentOnEnabled": "Kaneo akan berkomentar dengan tautan tugas pada issue baru",
 				"commentOnDisabled": "Komentar tautan tugas pada issue baru dimatikan",
-				"settingsUpdateError": "Gagal memperbarui integrasi GitHub"
+				"settingsUpdateError": "Gagal memperbarui integrasi GitHub",
+				"attachError": "Failed to attach GitHub repository",
+				"repositoryAttached": "GitHub repository attached"
 			},
 			"connectionStatus": "Status Koneksi",
 			"connectedActive": "Repositori terhubung dan aktif",
@@ -757,7 +759,16 @@
 			"importSectionHint": "Impor issue yang ada dari repositori GitHub Anda sebagai tugas",
 			"importing": "Mengimpor...",
 			"importIssues": "Impor Issue",
-			"importDisabledHint": "Lengkapi konfigurasi repositori di atas untuk mengaktifkan impor"
+			"importDisabledHint": "Lengkapi konfigurasi repositori di atas untuk mengaktifkan impor",
+			"addRepository": "Add repository",
+			"addRepositoryHint": "Choose a repository where the GitHub App is installed, or enter its owner and name manually.",
+			"addRepositoryTitle": "Add GitHub repository",
+			"browseRepositories": "Browse repositories",
+			"detach": "Detach",
+			"manualEntry": "or enter manually",
+			"noRepositories": "No GitHub repositories attached to this project.",
+			"repositoriesHint": "Tasks can target any attached GitHub repository.",
+			"repositoriesTitle": "Attached repositories"
 		},
 		"giteaIntegration": {
 			"validation": {
@@ -786,7 +797,9 @@
 				"commentOnDisabled": "Komentar tautan tugas pada issue baru dimatikan",
 				"settingsUpdateError": "Gagal memperbarui integrasi Gitea",
 				"secretCopied": "Disalin",
-				"unableToCopySecret": "Tidak dapat menyalin rahasia"
+				"unableToCopySecret": "Tidak dapat menyalin rahasia",
+				"attachError": "Failed to attach Gitea repository",
+				"repositoryAttached": "Gitea repository attached"
 			},
 			"webhookShow": "Tampilkan",
 			"webhookHide": "Sembunyikan",
@@ -831,7 +844,21 @@
 			"searchRepos": "Cari…",
 			"browseNeedsCredentials": "Masukkan URL dan token Gitea untuk menjelajah",
 			"loadingRepos": "Memuat repositori…",
-			"retry": "Coba lagi"
+			"retry": "Coba lagi",
+			"addRepository": "Add repository",
+			"addRepositoryHint": "Choose a repository available to your Gitea connection, or enter its owner and name manually.",
+			"addRepositoryTitle": "Add Gitea repository",
+			"allRepositoriesAttached": "All available repositories are already attached to this project.",
+			"browseRepositories": "Browse repositories",
+			"detach": "Detach",
+			"manualEntry": "or enter manually",
+			"noBrowseRepositories": "No repositories are available to this Gitea connection.",
+			"noRepositories": "No Gitea repositories attached to this project.",
+			"noRepositoryMatches": "No repositories match your search.",
+			"openRepository": "Open {{repository}} in Gitea",
+			"repositoriesHint": "Tasks can target any attached Gitea repository.",
+			"repositoriesTitle": "Attached repositories",
+			"usingStoredToken": "Using stored token {{token}}. Enter a new token only to replace it."
 		},
 		"slackIntegration": {
 			"validation": {
@@ -1017,7 +1044,9 @@
 			"relativeJustNow": "baru saja",
 			"relativeMinutesAgo": "{{count}}m lalu",
 			"relativeHoursAgo": "{{count}}j lalu",
-			"relativeDaysAgo": "{{count}}h lalu"
+			"relativeDaysAgo": "{{count}}h lalu",
+			"allAttachedHint": "Every repository available to this GitHub App is already attached to the project.",
+			"allAttachedTitle": "All repositories are attached"
 		},
 		"tasksImportExport": {
 			"exportTasks": "Ekspor Tugas",

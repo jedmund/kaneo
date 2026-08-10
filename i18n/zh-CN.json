@@ -883,7 +883,9 @@
 				"importError": "导入 Issues 失败",
 				"commentOnEnabled": "Kaneo 将在新 Issue 上评论任务链接",
 				"commentOnDisabled": "新 Issue 的任务链接评论已关闭",
-				"settingsUpdateError": "更新 GitHub 集成失败"
+				"settingsUpdateError": "更新 GitHub 集成失败",
+				"attachError": "Failed to attach GitHub repository",
+				"repositoryAttached": "GitHub repository attached"
 			},
 			"connectionStatus": "连接状态",
 			"connectedActive": "仓库已连接并启用",
@@ -919,7 +921,16 @@
 			"importSectionHint": "将 GitHub 仓库中已有的 Issue 导入为任务",
 			"importing": "导入中…",
 			"importIssues": "导入 Issues",
-			"importDisabledHint": "完成上方仓库配置后即可启用导入"
+			"importDisabledHint": "完成上方仓库配置后即可启用导入",
+			"addRepository": "Add repository",
+			"addRepositoryHint": "Choose a repository where the GitHub App is installed, or enter its owner and name manually.",
+			"addRepositoryTitle": "Add GitHub repository",
+			"browseRepositories": "Browse repositories",
+			"detach": "Detach",
+			"manualEntry": "or enter manually",
+			"noRepositories": "No GitHub repositories attached to this project.",
+			"repositoriesHint": "Tasks can target any attached GitHub repository.",
+			"repositoriesTitle": "Attached repositories"
 		},
 		"giteaIntegration": {
 			"validation": {
@@ -948,7 +959,9 @@
 				"commentOnDisabled": "新 Issue 的任务链接评论已关闭",
 				"settingsUpdateError": "更新 Gitea 集成失败",
 				"secretCopied": "已复制",
-				"unableToCopySecret": "无法复制密钥"
+				"unableToCopySecret": "无法复制密钥",
+				"attachError": "Failed to attach Gitea repository",
+				"repositoryAttached": "Gitea repository attached"
 			},
 			"webhookShow": "显示",
 			"webhookHide": "隐藏",
@@ -993,7 +1006,21 @@
 			"searchRepos": "搜索…",
 			"browseNeedsCredentials": "输入 Gitea URL 和令牌以浏览",
 			"loadingRepos": "正在加载仓库…",
-			"retry": "重试"
+			"retry": "重试",
+			"addRepository": "Add repository",
+			"addRepositoryHint": "Choose a repository available to your Gitea connection, or enter its owner and name manually.",
+			"addRepositoryTitle": "Add Gitea repository",
+			"allRepositoriesAttached": "All available repositories are already attached to this project.",
+			"browseRepositories": "Browse repositories",
+			"detach": "Detach",
+			"manualEntry": "or enter manually",
+			"noBrowseRepositories": "No repositories are available to this Gitea connection.",
+			"noRepositories": "No Gitea repositories attached to this project.",
+			"noRepositoryMatches": "No repositories match your search.",
+			"openRepository": "Open {{repository}} in Gitea",
+			"repositoriesHint": "Tasks can target any attached Gitea repository.",
+			"repositoriesTitle": "Attached repositories",
+			"usingStoredToken": "Using stored token {{token}}. Enter a new token only to replace it."
 		},
 		"slackIntegration": {
 			"validation": {
@@ -1179,7 +1206,9 @@
 			"relativeJustNow": "刚刚",
 			"relativeMinutesAgo": "{{count}} 分钟前",
 			"relativeHoursAgo": "{{count}} 小时前",
-			"relativeDaysAgo": "{{count}} 天前"
+			"relativeDaysAgo": "{{count}} 天前",
+			"allAttachedHint": "Every repository available to this GitHub App is already attached to the project.",
+			"allAttachedTitle": "All repositories are attached"
 		},
 		"tasksImportExport": {
 			"exportTasks": "导出任务",

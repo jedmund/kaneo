@@ -618,7 +618,9 @@
 				"importError": "Error al importar issues",
 				"commentOnEnabled": "Kaneo añadirá un comentario con un enlace a la tarea en los nuevos issues",
 				"commentOnDisabled": "Los comentarios con enlaces a tareas en nuevos issues están desactivados",
-				"settingsUpdateError": "Error al actualizar la integración de GitHub"
+				"settingsUpdateError": "Error al actualizar la integración de GitHub",
+				"attachError": "Failed to attach GitHub repository",
+				"repositoryAttached": "GitHub repository attached"
 			},
 			"connectionStatus": "Estado de la conexión",
 			"connectedActive": "Repositorio conectado y activo",
@@ -654,7 +656,16 @@
 			"importSectionHint": "Importar issues existentes de GitHub como tareas",
 			"importing": "Importando...",
 			"importIssues": "Importar Issues",
-			"importDisabledHint": "Completa la configuración del repositorio para activar la importación"
+			"importDisabledHint": "Completa la configuración del repositorio para activar la importación",
+			"addRepository": "Add repository",
+			"addRepositoryHint": "Choose a repository where the GitHub App is installed, or enter its owner and name manually.",
+			"addRepositoryTitle": "Add GitHub repository",
+			"browseRepositories": "Browse repositories",
+			"detach": "Detach",
+			"manualEntry": "or enter manually",
+			"noRepositories": "No GitHub repositories attached to this project.",
+			"repositoriesHint": "Tasks can target any attached GitHub repository.",
+			"repositoriesTitle": "Attached repositories"
 		},
 		"slackIntegration": {
 			"validation": {
@@ -794,7 +805,9 @@
 			"relativeJustNow": "ahora mismo",
 			"relativeMinutesAgo": "hace {{count}}m",
 			"relativeHoursAgo": "hace {{count}}h",
-			"relativeDaysAgo": "hace {{count}}d"
+			"relativeDaysAgo": "hace {{count}}d",
+			"allAttachedHint": "Every repository available to this GitHub App is already attached to the project.",
+			"allAttachedTitle": "All repositories are attached"
 		},
 		"tasksImportExport": {
 			"exportTasks": "Exportar tareas",
@@ -1133,7 +1146,9 @@
 				"commentOnDisabled": "Los comentarios con enlace a la tarea en nuevas issues están desactivados",
 				"settingsUpdateError": "Error al actualizar la integración con Gitea",
 				"secretCopied": "Copiado",
-				"unableToCopySecret": "No se pudo copiar el secreto"
+				"unableToCopySecret": "No se pudo copiar el secreto",
+				"attachError": "Failed to attach Gitea repository",
+				"repositoryAttached": "Gitea repository attached"
 			},
 			"webhookShow": "Mostrar",
 			"webhookHide": "Ocultar",
@@ -1178,7 +1193,21 @@
 			"searchRepos": "Buscar…",
 			"browseNeedsCredentials": "Introduce la URL de Gitea y el token para explorar",
 			"loadingRepos": "Cargando repositorios…",
-			"retry": "Reintentar"
+			"retry": "Reintentar",
+			"addRepository": "Add repository",
+			"addRepositoryHint": "Choose a repository available to your Gitea connection, or enter its owner and name manually.",
+			"addRepositoryTitle": "Add Gitea repository",
+			"allRepositoriesAttached": "All available repositories are already attached to this project.",
+			"browseRepositories": "Browse repositories",
+			"detach": "Detach",
+			"manualEntry": "or enter manually",
+			"noBrowseRepositories": "No repositories are available to this Gitea connection.",
+			"noRepositories": "No Gitea repositories attached to this project.",
+			"noRepositoryMatches": "No repositories match your search.",
+			"openRepository": "Open {{repository}} in Gitea",
+			"repositoriesHint": "Tasks can target any attached Gitea repository.",
+			"repositoriesTitle": "Attached repositories",
+			"usingStoredToken": "Using stored token {{token}}. Enter a new token only to replace it."
 		},
 		"telegramIntegration": {
 			"validation": {

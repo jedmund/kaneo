@@ -721,7 +721,9 @@
 				"importError": "Не удалось импортировать issues",
 				"commentOnEnabled": "Kaneo будет комментировать новые issues ссылкой на задачу",
 				"commentOnDisabled": "Комментарии со ссылками на задачи в новых issues отключены",
-				"settingsUpdateError": "Не удалось обновить интеграцию с GitHub"
+				"settingsUpdateError": "Не удалось обновить интеграцию с GitHub",
+				"attachError": "Failed to attach GitHub repository",
+				"repositoryAttached": "GitHub repository attached"
 			},
 			"connectionStatus": "Статус подключения",
 			"connectedActive": "Репозиторий подключён и активен",
@@ -757,7 +759,16 @@
 			"importSectionHint": "Импортируйте существующие issues из вашего GitHub-репозитория как задачи",
 			"importing": "Импорт...",
 			"importIssues": "Импортировать Issues",
-			"importDisabledHint": "Завершите настройку репозитория выше, чтобы включить импорт"
+			"importDisabledHint": "Завершите настройку репозитория выше, чтобы включить импорт",
+			"addRepository": "Add repository",
+			"addRepositoryHint": "Choose a repository where the GitHub App is installed, or enter its owner and name manually.",
+			"addRepositoryTitle": "Add GitHub repository",
+			"browseRepositories": "Browse repositories",
+			"detach": "Detach",
+			"manualEntry": "or enter manually",
+			"noRepositories": "No GitHub repositories attached to this project.",
+			"repositoriesHint": "Tasks can target any attached GitHub repository.",
+			"repositoriesTitle": "Attached repositories"
 		},
 		"giteaIntegration": {
 			"validation": {
@@ -786,7 +797,9 @@
 				"commentOnDisabled": "Комментарии со ссылками на задачи в новых issues отключены",
 				"settingsUpdateError": "Не удалось обновить интеграцию с Gitea",
 				"secretCopied": "Скопировано",
-				"unableToCopySecret": "Не удалось скопировать секрет"
+				"unableToCopySecret": "Не удалось скопировать секрет",
+				"attachError": "Failed to attach Gitea repository",
+				"repositoryAttached": "Gitea repository attached"
 			},
 			"webhookShow": "Показать",
 			"webhookHide": "Скрыть",
@@ -831,7 +844,21 @@
 			"searchRepos": "Поиск…",
 			"browseNeedsCredentials": "Введите URL Gitea и токен для просмотра",
 			"loadingRepos": "Загрузка репозиториев…",
-			"retry": "Повторить"
+			"retry": "Повторить",
+			"addRepository": "Add repository",
+			"addRepositoryHint": "Choose a repository available to your Gitea connection, or enter its owner and name manually.",
+			"addRepositoryTitle": "Add Gitea repository",
+			"allRepositoriesAttached": "All available repositories are already attached to this project.",
+			"browseRepositories": "Browse repositories",
+			"detach": "Detach",
+			"manualEntry": "or enter manually",
+			"noBrowseRepositories": "No repositories are available to this Gitea connection.",
+			"noRepositories": "No Gitea repositories attached to this project.",
+			"noRepositoryMatches": "No repositories match your search.",
+			"openRepository": "Open {{repository}} in Gitea",
+			"repositoriesHint": "Tasks can target any attached Gitea repository.",
+			"repositoriesTitle": "Attached repositories",
+			"usingStoredToken": "Using stored token {{token}}. Enter a new token only to replace it."
 		},
 		"slackIntegration": {
 			"validation": {
@@ -1017,7 +1044,9 @@
 			"relativeJustNow": "только что",
 			"relativeMinutesAgo": "{{count}} мин. назад",
 			"relativeHoursAgo": "{{count}} ч. назад",
-			"relativeDaysAgo": "{{count}} дн. назад"
+			"relativeDaysAgo": "{{count}} дн. назад",
+			"allAttachedHint": "Every repository available to this GitHub App is already attached to the project.",
+			"allAttachedTitle": "All repositories are attached"
 		},
 		"tasksImportExport": {
 			"exportTasks": "Экспорт задач",
