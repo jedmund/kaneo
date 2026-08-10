@@ -2,12 +2,28 @@ import { eq } from "drizzle-orm";
 import { beforeEach, describe, expect, it } from "vitest";
 import db, { schema } from "../../apps/api/src/database";
 import { createApp } from "../../apps/api/src/index";
+import {
+  broadcastTaskTitleChanged,
+  registerPlugin,
+} from "../../apps/api/src/plugins/registry";
+import type { PluginContext } from "../../apps/api/src/plugins/types";
 import { mockAuthenticatedSession } from "./helpers/auth";
 import { resetTestDatabase } from "./helpers/database";
 import {
   createProjectFixture,
   createWorkspaceMember,
 } from "./helpers/fixtures";
+
+const movedTaskContexts: PluginContext[] = [];
+registerPlugin({
+  type: "test-moved-task-scm",
+  name: "Moved task test SCM",
+  kind: "scm",
+  validateConfig: async () => ({ valid: true }),
+  onTaskTitleChanged: async (_event, context) => {
+    movedTaskContexts.push(context);
+  },
+});
 
 async function attachRepository(projectId: string, fullPath: string) {
   const [integration] = await db
@@ -56,6 +72,7 @@ function createTaskRequest(
 describe("API integration: SCM task targeting", () => {
   beforeEach(async () => {
     await resetTestDatabase();
+    movedTaskContexts.length = 0;
   });
 
   it("creates a Kaneo-only task without an SCM job by default", async () => {
@@ -174,5 +191,69 @@ describe("API integration: SCM task targeting", () => {
         fullPath: "team/first",
       }),
     ]);
+  });
+
+  it("keeps syncing through the linked source repository after a project move", async () => {
+    const member = await createWorkspaceMember({ role: "owner" });
+    const { project: sourceProject } = await createProjectFixture({
+      workspaceId: member.workspace.id,
+    });
+    const { project: destinationProject, columns } = await createProjectFixture(
+      {
+        workspaceId: member.workspace.id,
+      },
+    );
+    const [integration] = await db
+      .insert(schema.integrationTable)
+      .values({
+        projectId: sourceProject.id,
+        type: "test-moved-task-scm",
+        config: JSON.stringify({}),
+      })
+      .returning();
+    const [repository] = await db
+      .insert(schema.integrationRepositoryTable)
+      .values({
+        integrationId: integration.id,
+        provider: "test-moved-task-scm",
+        remoteOrigin: "https://git.example.test",
+        providerRepositoryId: "moved-task-repository",
+        fullPath: "team/moved-task-repository",
+        webUrl: "https://git.example.test/team/moved-task-repository",
+      })
+      .returning();
+    const [task] = await db
+      .insert(schema.taskTable)
+      .values({
+        projectId: destinationProject.id,
+        columnId: columns.todo.id,
+        title: "Moved task",
+        status: "to-do",
+        number: 1,
+      })
+      .returning();
+    await db.insert(schema.externalLinkTable).values({
+      taskId: task.id,
+      integrationId: integration.id,
+      integrationRepositoryId: repository.id,
+      resourceType: "issue",
+      externalId: "17",
+      url: `${repository.webUrl}/issues/17`,
+    });
+
+    await broadcastTaskTitleChanged({
+      taskId: task.id,
+      projectId: destinationProject.id,
+      userId: member.user.id,
+      oldTitle: "Moved task",
+      newTitle: "Still syncing",
+    });
+
+    expect(movedTaskContexts).toHaveLength(1);
+    expect(movedTaskContexts[0]).toMatchObject({
+      integrationId: integration.id,
+      integrationRepositoryId: repository.id,
+      projectId: sourceProject.id,
+    });
   });
 });

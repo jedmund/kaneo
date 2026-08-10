@@ -244,26 +244,45 @@ export function listPlugins(): IntegrationPlugin[] {
 }
 
 async function getActiveIntegrations(projectId: string, taskId?: string) {
+  if (!taskId) {
+    return db.query.integrationTable.findMany({
+      where: and(
+        eq(integrationTable.projectId, projectId),
+        eq(integrationTable.isActive, true),
+      ),
+      with: {
+        project: true,
+      },
+    });
+  }
+
+  const links = await db.query.externalLinkTable.findMany({
+    where: eq(externalLinkTable.taskId, taskId),
+    with: { integrationRepository: true },
+  });
+  const linkedIntegrationIds = Array.from(
+    new Set(links.map((link) => link.integrationId)),
+  );
   const integrations = await db.query.integrationTable.findMany({
     where: and(
-      eq(integrationTable.projectId, projectId),
       eq(integrationTable.isActive, true),
+      linkedIntegrationIds.length > 0
+        ? or(
+            eq(integrationTable.projectId, projectId),
+            inArray(integrationTable.id, linkedIntegrationIds),
+          )
+        : eq(integrationTable.projectId, projectId),
     ),
     with: {
       project: true,
     },
   });
 
-  if (!taskId) return integrations;
-
-  const links = await db.query.externalLinkTable.findMany({
-    where: eq(externalLinkTable.taskId, taskId),
-    with: { integrationRepository: true },
-  });
-
   return integrations.flatMap((integration) => {
     const plugin = getPlugin(integration.type);
-    if (plugin?.kind !== "scm") return [integration];
+    if (plugin?.kind !== "scm") {
+      return integration.projectId === projectId ? [integration] : [];
+    }
 
     const repositories = new Map<
       string,
