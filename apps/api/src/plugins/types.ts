@@ -27,6 +27,14 @@ export type TaskCreatedEvent = {
   number: number;
   integrationRepositoryId?: string;
   scmSyncJobId?: string;
+  scmSyncAttempt?: number;
+};
+
+export type ReconciledScmIssue = {
+  externalId: string;
+  url: string;
+  title: string | null;
+  metadata?: Record<string, unknown>;
 };
 
 export type TaskStatusChangedEvent = {
@@ -153,6 +161,11 @@ export type MetadataProvider = (
   context: PluginContext,
 ) => Promise<ExternalMetadata[]>;
 
+export type TaskCreatedReconciler = (
+  event: TaskCreatedEvent,
+  context: PluginContext,
+) => Promise<ReconciledScmIssue | null>;
+
 export type ConfigValidator = (
   config: unknown,
 ) => Promise<{ valid: boolean; errors?: string[] }>;
@@ -163,6 +176,7 @@ export type IntegrationPlugin = {
   kind?: "scm";
 
   onTaskCreated?: TaskEventHandler<TaskCreatedEvent>;
+  reconcileTaskCreated?: TaskCreatedReconciler;
   onTaskStatusChanged?: TaskEventHandler<TaskStatusChangedEvent>;
   onTaskPriorityChanged?: TaskEventHandler<TaskPriorityChangedEvent>;
   onTaskTitleChanged?: TaskEventHandler<TaskTitleChangedEvent>;

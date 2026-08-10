@@ -1,7 +1,11 @@
 import { eq } from "drizzle-orm";
 import db from "../../../database";
 import { projectTable } from "../../../database/schema";
-import type { PluginContext, TaskCreatedEvent } from "../../types";
+import type {
+  PluginContext,
+  ReconciledScmIssue,
+  TaskCreatedEvent,
+} from "../../types";
 import type { GitHubConfig } from "../config";
 import {
   createExternalLink,
@@ -11,20 +15,69 @@ import {
   formatIssueBody,
   formatIssueTitle,
   getLabelsForIssue,
+  hasScmSyncJobMarker,
 } from "../utils/format";
 import { getGithubApp, getInstallationIdForRepo } from "../utils/github-app";
 import { addLabelsToIssue } from "../utils/labels";
+
+async function requireGitHubClient(context: PluginContext) {
+  const githubApp = getGithubApp();
+  if (!githubApp) {
+    throw new Error("GitHub app is not configured");
+  }
+  const config = context.config as GitHubConfig;
+  let installationId = config.installationId;
+  if (!installationId) {
+    installationId = await getInstallationIdForRepo(
+      config.repositoryOwner,
+      config.repositoryName,
+    );
+  }
+  const octokit = await githubApp.getInstallationOctokit(installationId);
+  return { config, octokit };
+}
+
+export async function reconcileTaskCreated(
+  event: TaskCreatedEvent,
+  context: PluginContext,
+): Promise<ReconciledScmIssue | null> {
+  const syncJobId = event.scmSyncJobId;
+  if (!syncJobId) {
+    throw new Error("SCM sync job ID is required for GitHub reconciliation");
+  }
+  const { config, octokit } = await requireGitHubClient(context);
+  const issuePages = octokit.paginate.iterator(
+    octokit.rest.issues.listForRepo,
+    {
+      owner: config.repositoryOwner,
+      repo: config.repositoryName,
+      state: "all",
+      per_page: 100,
+    },
+  );
+  for await (const response of issuePages) {
+    const issue = response.data.find(
+      (candidate) =>
+        !candidate.pull_request &&
+        hasScmSyncJobMarker(candidate.body, syncJobId),
+    );
+    if (issue) {
+      return {
+        externalId: String(issue.number),
+        url: issue.html_url,
+        title: issue.title,
+        metadata: { state: issue.state },
+      };
+    }
+  }
+  return null;
+}
 
 export async function handleTaskCreated(
   event: TaskCreatedEvent,
   context: PluginContext,
 ): Promise<void> {
-  const githubApp = getGithubApp();
-  if (!githubApp) {
-    throw new Error("GitHub app is not configured");
-  }
-
-  const config = context.config as GitHubConfig;
+  const { config, octokit } = await requireGitHubClient(context);
   const { repositoryOwner, repositoryName } = config;
 
   const existingLink = await findExternalLinkByTaskAndType(
@@ -38,21 +91,11 @@ export async function handleTaskCreated(
     return;
   }
 
-  let installationId = config.installationId;
-  if (!installationId) {
-    installationId = await getInstallationIdForRepo(
-      repositoryOwner,
-      repositoryName,
-    );
-  }
-
-  const octokit = await githubApp.getInstallationOctokit(installationId);
-
   const createdIssue = await octokit.rest.issues.create({
     owner: repositoryOwner,
     repo: repositoryName,
     title: formatIssueTitle(event.title),
-    body: formatIssueBody(event.description, event.taskId),
+    body: formatIssueBody(event.description, event.taskId, event.scmSyncJobId),
   });
 
   await createExternalLink({

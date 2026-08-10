@@ -4,6 +4,7 @@ import db, { schema } from "../../apps/api/src/database";
 import { createApp } from "../../apps/api/src/index";
 import {
   broadcastTaskTitleChanged,
+  processScmSyncJob,
   registerPlugin,
 } from "../../apps/api/src/plugins/registry";
 import type { PluginContext } from "../../apps/api/src/plugins/types";
@@ -15,6 +16,11 @@ import {
 } from "./helpers/fixtures";
 
 const movedTaskContexts: PluginContext[] = [];
+const remoteIssuesBySyncJob = new Map<
+  string,
+  { externalId: string; url: string; title: string }
+>();
+const taskCreationAttempts: string[] = [];
 registerPlugin({
   type: "test-moved-task-scm",
   name: "Moved task test SCM",
@@ -22,6 +28,25 @@ registerPlugin({
   validateConfig: async () => ({ valid: true }),
   onTaskTitleChanged: async (_event, context) => {
     movedTaskContexts.push(context);
+  },
+  onTaskCreated: async (event) => {
+    const syncJobId = event.scmSyncJobId ?? "";
+    taskCreationAttempts.push(syncJobId);
+    remoteIssuesBySyncJob.set(syncJobId, {
+      externalId: "81",
+      url: "https://git.example.test/team/retry-repository/issues/81",
+      title: event.title,
+    });
+    throw new Error("Simulated worker exit after remote issue creation");
+  },
+  reconcileTaskCreated: async (event) => {
+    const issue = remoteIssuesBySyncJob.get(event.scmSyncJobId ?? "");
+    return issue
+      ? {
+          ...issue,
+          metadata: { state: "open" },
+        }
+      : null;
   },
 });
 
@@ -73,6 +98,8 @@ describe("API integration: SCM task targeting", () => {
   beforeEach(async () => {
     await resetTestDatabase();
     movedTaskContexts.length = 0;
+    remoteIssuesBySyncJob.clear();
+    taskCreationAttempts.length = 0;
   });
 
   it("creates a Kaneo-only task without an SCM job by default", async () => {
@@ -255,5 +282,88 @@ describe("API integration: SCM task targeting", () => {
       integrationRepositoryId: repository.id,
       projectId: sourceProject.id,
     });
+  });
+
+  it("reconciles a remote issue before retrying a stale creation job", async () => {
+    const member = await createWorkspaceMember({ role: "owner" });
+    const { project, columns } = await createProjectFixture({
+      workspaceId: member.workspace.id,
+    });
+    const [integration] = await db
+      .insert(schema.integrationTable)
+      .values({
+        projectId: project.id,
+        type: "test-moved-task-scm",
+        config: JSON.stringify({}),
+      })
+      .returning();
+    const [repository] = await db
+      .insert(schema.integrationRepositoryTable)
+      .values({
+        integrationId: integration.id,
+        provider: "test-moved-task-scm",
+        remoteOrigin: "https://git.example.test",
+        providerRepositoryId: "retry-repository",
+        fullPath: "team/retry-repository",
+        webUrl: "https://git.example.test/team/retry-repository",
+      })
+      .returning();
+    const [task] = await db
+      .insert(schema.taskTable)
+      .values({
+        projectId: project.id,
+        columnId: columns.todo.id,
+        title: "Retry-safe task",
+        description: "Created once",
+        status: "to-do",
+        priority: "high",
+        number: 1,
+      })
+      .returning();
+    const [job] = await db
+      .insert(schema.scmSyncJobTable)
+      .values({
+        taskId: task.id,
+        integrationRepositoryId: repository.id,
+        operation: "create_issue",
+        dedupeKey: `create-issue:${task.id}:${repository.id}`,
+        payload: {
+          taskId: task.id,
+          projectId: project.id,
+          userId: member.user.id,
+          title: task.title,
+          description: task.description,
+          priority: task.priority,
+          status: task.status,
+          number: task.number ?? 1,
+        },
+      })
+      .returning();
+
+    expect(await processScmSyncJob(job.id)).toBe(false);
+    await db
+      .update(schema.scmSyncJobTable)
+      .set({ nextAttemptAt: new Date(0) })
+      .where(eq(schema.scmSyncJobTable.id, job.id));
+    expect(await processScmSyncJob(job.id)).toBe(true);
+
+    expect(taskCreationAttempts).toEqual([job.id]);
+    expect(remoteIssuesBySyncJob.size).toBe(1);
+    expect(
+      await db
+        .select()
+        .from(schema.externalLinkTable)
+        .where(eq(schema.externalLinkTable.taskId, task.id)),
+    ).toEqual([
+      expect.objectContaining({
+        integrationRepositoryId: repository.id,
+        externalId: "81",
+      }),
+    ]);
+    expect(
+      await db.query.scmSyncJobTable.findFirst({
+        where: eq(schema.scmSyncJobTable.id, job.id),
+      }),
+    ).toEqual(expect.objectContaining({ status: "completed", attempts: 2 }));
   });
 });

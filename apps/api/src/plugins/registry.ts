@@ -393,6 +393,67 @@ function syncRetryDelay(attempts: number): number {
   return Math.min(60 * 60 * 1000, 30 * 1000 * 2 ** Math.max(0, attempts - 1));
 }
 
+async function findTaskIssueLink(taskId: string, repositoryId: string) {
+  return db.query.externalLinkTable.findFirst({
+    where: and(
+      eq(externalLinkTable.taskId, taskId),
+      eq(externalLinkTable.integrationRepositoryId, repositoryId),
+      eq(externalLinkTable.resourceType, "issue"),
+    ),
+  });
+}
+
+async function recordReconciledIssue(input: {
+  taskId: string;
+  integrationId: string;
+  repositoryId: string;
+  syncJobId: string;
+  issue: {
+    externalId: string;
+    url: string;
+    title: string | null;
+    metadata?: Record<string, unknown>;
+  };
+}) {
+  await db
+    .insert(externalLinkTable)
+    .values({
+      taskId: input.taskId,
+      integrationId: input.integrationId,
+      integrationRepositoryId: input.repositoryId,
+      resourceType: "issue",
+      externalId: input.issue.externalId,
+      url: input.issue.url,
+      title: input.issue.title,
+      metadata: JSON.stringify({
+        ...input.issue.metadata,
+        createdFrom: "kaneo",
+        reconciledFromScmSyncJob: input.syncJobId,
+      }),
+    })
+    .onConflictDoNothing({
+      target: [
+        externalLinkTable.integrationRepositoryId,
+        externalLinkTable.resourceType,
+        externalLinkTable.externalId,
+      ],
+    });
+
+  const link = await db.query.externalLinkTable.findFirst({
+    where: and(
+      eq(externalLinkTable.integrationRepositoryId, input.repositoryId),
+      eq(externalLinkTable.resourceType, "issue"),
+      eq(externalLinkTable.externalId, input.issue.externalId),
+    ),
+  });
+  if (!link) {
+    throw new Error("Failed to record reconciled SCM issue");
+  }
+  if (link.taskId !== input.taskId) {
+    throw new Error("Reconciled SCM issue is already linked to another task");
+  }
+}
+
 export async function processScmSyncJob(jobId: string): Promise<boolean> {
   const now = new Date();
   const [claimed] = await db
@@ -441,17 +502,39 @@ export async function processScmSyncJob(jobId: string): Promise<boolean> {
       throw new Error(`SCM plugin ${integration.type} is not available`);
     }
 
-    const event = job.payload as TaskCreatedEvent;
-    await plugin.onTaskCreated(
-      {
-        ...event,
-        taskId: job.taskId,
-        projectId: integration.projectId,
-        integrationRepositoryId: repository.id,
-        scmSyncJobId: job.id,
-      },
-      createContext({ ...integration, repository }),
-    );
+    const event: TaskCreatedEvent = {
+      ...(job.payload as TaskCreatedEvent),
+      taskId: job.taskId,
+      projectId: integration.projectId,
+      integrationRepositoryId: repository.id,
+      scmSyncJobId: job.id,
+      scmSyncAttempt: job.attempts,
+    };
+    const context = createContext({ ...integration, repository });
+    let issueLink = await findTaskIssueLink(job.taskId, repository.id);
+
+    if (!issueLink && job.attempts > 1) {
+      if (!plugin.reconcileTaskCreated) {
+        throw new Error(
+          `SCM plugin ${integration.type} cannot safely retry issue creation`,
+        );
+      }
+      const reconciledIssue = await plugin.reconcileTaskCreated(event, context);
+      if (reconciledIssue) {
+        await recordReconciledIssue({
+          taskId: job.taskId,
+          integrationId: integration.id,
+          repositoryId: repository.id,
+          syncJobId: job.id,
+          issue: reconciledIssue,
+        });
+        issueLink = await findTaskIssueLink(job.taskId, repository.id);
+      }
+    }
+
+    if (!issueLink) {
+      await plugin.onTaskCreated(event, context);
+    }
 
     await db
       .update(scmSyncJobTable)
