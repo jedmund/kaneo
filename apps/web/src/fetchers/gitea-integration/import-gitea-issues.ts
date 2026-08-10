@@ -1,8 +1,11 @@
 import { client } from "@kaneo/libs";
 
-async function importGiteaIssues(projectId: string) {
+async function importGiteaIssues(input: {
+  projectId: string;
+  repositoryId: string;
+}) {
   const response = await client["gitea-integration"]["import-issues"].$post({
-    json: { projectId },
+    json: input,
   });
 
   if (!response.ok) {
