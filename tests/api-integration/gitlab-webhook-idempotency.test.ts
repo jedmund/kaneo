@@ -70,7 +70,10 @@ async function createGitLabBinding() {
   return { binding, integration, project, repository };
 }
 
-function issueHook(description: string | null = "Imported description") {
+function issueHook(
+  description: string | null = "Imported description",
+  issueIid = 23,
+) {
   return {
     object_kind: "issue" as const,
     user: { id: 5, username: "developer", name: "Developer" },
@@ -81,14 +84,14 @@ function issueHook(description: string | null = "Imported description") {
     },
     labels: [],
     object_attributes: {
-      id: 901,
-      iid: 23,
+      id: 900 + issueIid,
+      iid: issueIid,
       project_id: 17,
       action: "open" as const,
       state: "opened" as const,
       title: "GitLab issue",
       description,
-      url: "https://gitlab.example/group/project/-/issues/23",
+      url: `https://gitlab.example/group/project/-/issues/${issueIid}`,
     },
   };
 }
@@ -209,6 +212,107 @@ describe("API integration: GitLab webhook idempotency", () => {
 
     expect(tasks).toHaveLength(1);
     expect(link?.taskId).toBe(task.id);
+  });
+
+  it("does not replay markers from a completed sync job", async () => {
+    const { binding, project } = await createGitLabBinding();
+    const [task] = await db
+      .insert(schema.taskTable)
+      .values({
+        projectId: project.id,
+        title: "Completed outbound task",
+        status: "to-do",
+        number: 10,
+      })
+      .returning();
+    const [job] = await db
+      .insert(schema.scmSyncJobTable)
+      .values({
+        taskId: task.id,
+        integrationRepositoryId: binding.repository.id,
+        operation: "create_issue",
+        dedupeKey: `create-issue:${task.id}:${binding.repository.id}`,
+        status: "completed",
+        completedAt: new Date(),
+        payload: {},
+      })
+      .returning();
+
+    await handleGitLabIssueHook(
+      issueHook(formatIssueBody("Copied markers", task.id, job.id)),
+      binding,
+    );
+
+    const [link] = await db
+      .select()
+      .from(schema.externalLinkTable)
+      .where(
+        and(
+          eq(
+            schema.externalLinkTable.integrationRepositoryId,
+            binding.repository.id,
+          ),
+          eq(schema.externalLinkTable.resourceType, "issue"),
+          eq(schema.externalLinkTable.externalId, "23"),
+        ),
+      );
+    expect(link).toBeDefined();
+    expect(link?.taskId).not.toBe(task.id);
+  });
+
+  it("does not link a second repository issue with the same active markers", async () => {
+    const { binding, project } = await createGitLabBinding();
+    const [task] = await db
+      .insert(schema.taskTable)
+      .values({
+        projectId: project.id,
+        title: "Single outbound issue",
+        status: "to-do",
+        number: 10,
+      })
+      .returning();
+    const [job] = await db
+      .insert(schema.scmSyncJobTable)
+      .values({
+        taskId: task.id,
+        integrationRepositoryId: binding.repository.id,
+        operation: "create_issue",
+        dedupeKey: `create-issue:${task.id}:${binding.repository.id}`,
+        payload: {},
+      })
+      .returning();
+    const description = formatIssueBody("Copied markers", task.id, job.id);
+
+    await handleGitLabIssueHook(issueHook(description, 23), binding);
+    await handleGitLabIssueHook(issueHook(description, 24), binding);
+
+    const taskLinks = await db
+      .select()
+      .from(schema.externalLinkTable)
+      .where(
+        and(
+          eq(schema.externalLinkTable.taskId, task.id),
+          eq(
+            schema.externalLinkTable.integrationRepositoryId,
+            binding.repository.id,
+          ),
+          eq(schema.externalLinkTable.resourceType, "issue"),
+        ),
+      );
+    const replayLink = await db.query.externalLinkTable.findFirst({
+      where: and(
+        eq(
+          schema.externalLinkTable.integrationRepositoryId,
+          binding.repository.id,
+        ),
+        eq(schema.externalLinkTable.resourceType, "issue"),
+        eq(schema.externalLinkTable.externalId, "24"),
+      ),
+    });
+    expect(taskLinks).toHaveLength(1);
+    expect(taskLinks[0]?.externalId).toBe("23");
+    expect(replayLink).toBeDefined();
+    expect(replayLink?.taskId).not.toBe(task.id);
   });
 
   it("does not trust a task marker whose sync job belongs to another task", async () => {

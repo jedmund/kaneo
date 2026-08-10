@@ -1,4 +1,4 @@
-import { and, eq } from "drizzle-orm";
+import { and, eq, inArray } from "drizzle-orm";
 import db from "../../database";
 import {
   activityTable,
@@ -335,22 +335,50 @@ async function linkTaskFromIssueMarker(
   if (!taskId || !syncJobId) return false;
 
   return db.transaction(async (tx) => {
-    const [task] = await tx
-      .select({ id: taskTable.id })
+    const [job] = await tx
+      .select({ taskId: scmSyncJobTable.taskId })
       .from(scmSyncJobTable)
-      .innerJoin(taskTable, eq(taskTable.id, scmSyncJobTable.taskId))
       .where(
         and(
           eq(scmSyncJobTable.id, syncJobId),
           eq(scmSyncJobTable.taskId, taskId),
           eq(scmSyncJobTable.integrationRepositoryId, binding.repository.id),
           eq(scmSyncJobTable.operation, "create_issue"),
-          eq(taskTable.id, taskId),
+          inArray(scmSyncJobTable.status, ["pending", "processing", "failed"]),
+        ),
+      )
+      .limit(1)
+      .for("update");
+    if (!job) return false;
+
+    const [task] = await tx
+      .select({ id: taskTable.id })
+      .from(taskTable)
+      .where(
+        and(
+          eq(taskTable.id, job.taskId),
           eq(taskTable.projectId, binding.integration.projectId),
         ),
       )
       .limit(1);
     if (!task) return false;
+
+    const [existingTaskIssue] = await tx
+      .select({ externalId: externalLinkTable.externalId })
+      .from(externalLinkTable)
+      .where(
+        and(
+          eq(externalLinkTable.taskId, task.id),
+          eq(externalLinkTable.integrationRepositoryId, binding.repository.id),
+          eq(externalLinkTable.resourceType, "issue"),
+        ),
+      )
+      .limit(1);
+    if (existingTaskIssue) {
+      return (
+        existingTaskIssue.externalId === String(issue.object_attributes.iid)
+      );
+    }
 
     await tx
       .insert(externalLinkTable)
