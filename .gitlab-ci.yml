@@ -30,7 +30,9 @@ lint:
   extends: .node-job
   stage: validate
   script:
-    - pnpm exec biome ci .
+    # The pnpm cache lives inside the checkout so GitLab can persist it. Limit
+    # Biome to versioned files to keep restored package metadata out of lint.
+    - git ls-files -z | xargs -0 pnpm exec biome ci --files-ignore-unknown=true
 
 typecheck:
   extends: .node-job
