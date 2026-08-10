@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   extractGitLabTaskNumber,
   extractKaneoTaskId,
+  extractScmSyncJobId,
   gitLabObjectKind,
   stripKaneoTaskMarker,
 } from "../../../../apps/api/src/plugins/gitlab/webhook-events";
@@ -44,11 +45,20 @@ describe("GitLab webhook routing", () => {
 <!-- kaneo-scm-sync-job: sync_job_456 -->`;
 
     expect(extractKaneoTaskId(description)).toBe("task_123");
+    expect(extractScmSyncJobId(description)).toBe("sync_job_456");
     expect(stripKaneoTaskMarker(description)).toBe("Issue description");
     expect(
       stripKaneoTaskMarker(
         "<sub>Task: task_123</sub>\n<!-- kaneo-scm-sync-job: sync_job_456 -->",
       ),
     ).toBe("");
+  });
+
+  it("rejects missing or ambiguous sync job markers", () => {
+    expect(extractScmSyncJobId("<sub>Task: task_123</sub>")).toBeNull();
+    expect(
+      extractScmSyncJobId(`<!-- kaneo-scm-sync-job: first -->
+<!-- kaneo-scm-sync-job: second -->`),
+    ).toBeNull();
   });
 });

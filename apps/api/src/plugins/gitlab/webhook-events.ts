@@ -6,6 +6,7 @@ import {
   externalLinkTable,
   labelTable,
   projectTable,
+  scmSyncJobTable,
   taskTable,
 } from "../../database/schema";
 import { publishEvent } from "../../events";
@@ -194,6 +195,18 @@ export function extractKaneoTaskId(
   return match?.[1]?.trim() || null;
 }
 
+export function extractScmSyncJobId(
+  description: string | null | undefined,
+): string | null {
+  const matches = [
+    ...(description?.matchAll(
+      /<!-- kaneo-scm-sync-job:\s*([^>\r\n]+?)\s*-->/gu,
+    ) ?? []),
+  ];
+  if (matches.length !== 1) return null;
+  return matches[0]?.[1]?.trim() || null;
+}
+
 async function publishStatusChange(
   result: Awaited<ReturnType<typeof updateTaskStatus>>,
 ) {
@@ -318,14 +331,20 @@ async function linkTaskFromIssueMarker(
   binding: GitLabWebhookBinding,
 ) {
   const taskId = extractKaneoTaskId(issue.object_attributes.description);
-  if (!taskId) return false;
+  const syncJobId = extractScmSyncJobId(issue.object_attributes.description);
+  if (!taskId || !syncJobId) return false;
 
   return db.transaction(async (tx) => {
     const [task] = await tx
       .select({ id: taskTable.id })
-      .from(taskTable)
+      .from(scmSyncJobTable)
+      .innerJoin(taskTable, eq(taskTable.id, scmSyncJobTable.taskId))
       .where(
         and(
+          eq(scmSyncJobTable.id, syncJobId),
+          eq(scmSyncJobTable.taskId, taskId),
+          eq(scmSyncJobTable.integrationRepositoryId, binding.repository.id),
+          eq(scmSyncJobTable.operation, "create_issue"),
           eq(taskTable.id, taskId),
           eq(taskTable.projectId, binding.integration.projectId),
         ),
