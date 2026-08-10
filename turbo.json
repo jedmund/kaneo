@@ -1,6 +1,14 @@
 {
 	"$schema": "https://turbo.build/schema.json",
 	"ui": "tui",
+	"globalEnv": [
+		"GITLAB_INTERNAL_URL",
+		"GITLAB_OAUTH_CLIENT_ID",
+		"GITLAB_OAUTH_CLIENT_SECRET",
+		"GITLAB_PUBLIC_URL",
+		"KANEO_ALLOW_PRIVATE_WEBHOOK_DESTINATIONS",
+		"SCM_SECRET_ENCRYPTION_KEY"
+	],
 	"tasks": {
 		"build": {
 			"dependsOn": ["^build"],
