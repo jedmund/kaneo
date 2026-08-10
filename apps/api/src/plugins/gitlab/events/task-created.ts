@@ -6,8 +6,13 @@ import {
   formatIssueBody,
   formatIssueTitle,
   getLabelsForIssue,
+  hasScmSyncJobMarker,
 } from "../../github/utils/format";
-import type { PluginContext, TaskCreatedEvent } from "../../types";
+import type {
+  PluginContext,
+  ReconciledScmIssue,
+  TaskCreatedEvent,
+} from "../../types";
 import { requireGitLabContext } from "../context";
 import { decorateGitLabIssue } from "../labels";
 
@@ -26,7 +31,11 @@ export async function handleTaskCreated(
 
   const issue = await client.createIssue(projectId, {
     title: formatIssueTitle(event.title),
-    description: formatIssueBody(event.description, event.taskId),
+    description: formatIssueBody(
+      event.description,
+      event.taskId,
+      event.scmSyncJobId,
+    ),
   });
 
   await createExternalLink({
@@ -55,4 +64,32 @@ export async function handleTaskCreated(
   } catch (error) {
     console.error("Failed to decorate newly created GitLab issue:", error);
   }
+}
+
+export async function reconcileTaskCreated(
+  event: TaskCreatedEvent,
+  context: PluginContext,
+): Promise<ReconciledScmIssue | null> {
+  const syncJobId = event.scmSyncJobId;
+  if (!syncJobId) {
+    throw new Error("SCM sync job ID is required for GitLab reconciliation");
+  }
+  const { client, projectId } = requireGitLabContext(context);
+  const issue = (await client.listIssues(projectId, "all")).find((candidate) =>
+    hasScmSyncJobMarker(candidate.description, syncJobId),
+  );
+  if (!issue) return null;
+
+  return {
+    externalId: String(issue.iid),
+    url: issue.web_url,
+    title: issue.title,
+    metadata: {
+      state: issue.state,
+      globalId: issue.id,
+      createdFrom: "kaneo",
+      recoveredFromSyncJob: syncJobId,
+      lastOutboundStateSyncAt: Date.now(),
+    },
+  };
 }
