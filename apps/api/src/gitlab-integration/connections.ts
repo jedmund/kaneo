@@ -95,7 +95,7 @@ function throwConnectionError(error: unknown): never {
   throw new HTTPException(400, { message: "Unable to verify GitLab access" });
 }
 
-function clientForConnection(connection: GitLabConnectionRow) {
+export function getGitLabClientForConnection(connection: GitLabConnectionRow) {
   const credential = decryptScmCredential(connection.credentialCiphertext);
   return createGitLabClient({
     publicUrl: connection.publicUrl,
@@ -279,7 +279,7 @@ export async function listConnectionProjects(
   const connection = await requireGitLabConnection(workspaceId, connectionId);
   try {
     const projects =
-      await clientForConnection(connection).listMaintainedProjects();
+      await getGitLabClientForConnection(connection).listMaintainedProjects();
     if (connection.status !== "active" || connection.statusMessage) {
       await db
         .update(scmConnectionTable)

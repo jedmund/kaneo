@@ -1,7 +1,9 @@
 import { afterEach, describe, expect, it } from "vitest";
 import {
   decryptScmCredential,
+  decryptScmSecret,
   encryptScmCredential,
+  encryptScmSecret,
   maskScmToken,
 } from "../../../apps/api/src/scm/secrets";
 
@@ -50,5 +52,13 @@ describe("SCM credential encryption", () => {
   it("masks tokens while retaining a rotation hint", () => {
     expect(maskScmToken("glpat-1234567890")).toBe("glpa…7890");
     expect(maskScmToken("short")).toBe("••••••••");
+  });
+
+  it("encrypts provider signing secrets independently from credentials", () => {
+    process.env.SCM_SECRET_ENCRYPTION_KEY = "test-key-with-high-entropy";
+    const ciphertext = encryptScmSecret("whsec_signing-secret");
+    expect(ciphertext).toMatch(/^scm-secret:v1:/);
+    expect(ciphertext).not.toContain("signing-secret");
+    expect(decryptScmSecret(ciphertext)).toBe("whsec_signing-secret");
   });
 });

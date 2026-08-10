@@ -10,6 +10,11 @@ import {
   listGitLabConnections,
   rotateTokenConnection,
 } from "./connections";
+import {
+  attachGitLabRepository,
+  detachGitLabRepository,
+  listProjectGitLabRepositories,
+} from "./repositories";
 
 const connectionSchema = v.object({
   id: v.string(),
@@ -39,6 +44,20 @@ const projectSchema = v.object({
   merge_requests_enabled: v.boolean(),
 });
 
+const repositorySchema = v.object({
+  id: v.string(),
+  integrationId: v.string(),
+  connectionId: v.string(),
+  providerRepositoryId: v.string(),
+  fullPath: v.string(),
+  webUrl: v.string(),
+  defaultBranch: v.nullable(v.string()),
+  webhookConfigured: v.boolean(),
+  isActive: v.boolean(),
+  createdAt: v.string(),
+  updatedAt: v.string(),
+});
+
 const routeVariables = {
   Variables: {} as {
     userId: string;
@@ -48,6 +67,90 @@ const routeVariables = {
 };
 
 const gitlabIntegration = new Hono<typeof routeVariables>()
+  .get(
+    "/project/:projectId/repositories",
+    describeRoute({
+      operationId: "listProjectGitLabRepositories",
+      tags: ["GitLab"],
+      description: "List GitLab repositories attached to a Kaneo project",
+      responses: {
+        200: {
+          description: "Attached GitLab repositories",
+          content: {
+            "application/json": {
+              schema: resolver(
+                v.object({ repositories: v.array(repositorySchema) }),
+              ),
+            },
+          },
+        },
+      },
+    }),
+    validator("param", v.object({ projectId: v.string() })),
+    workspaceAccess.fromProject("projectId"),
+    requireWorkspacePermission({ workspace: ["manage_settings"] }),
+    async (c) => {
+      const { projectId } = c.req.valid("param");
+      return c.json({
+        repositories: await listProjectGitLabRepositories(projectId),
+      });
+    },
+  )
+  .post(
+    "/project/:projectId/repositories",
+    describeRoute({
+      operationId: "attachGitLabRepository",
+      tags: ["GitLab"],
+      description:
+        "Attach a GitLab project and provision its signed webhook automatically",
+      responses: {
+        201: {
+          description: "GitLab repository attached",
+          content: {
+            "application/json": { schema: resolver(repositorySchema) },
+          },
+        },
+      },
+    }),
+    validator("param", v.object({ projectId: v.string() })),
+    validator(
+      "json",
+      v.object({
+        connectionId: v.string(),
+        providerRepositoryId: v.pipe(v.number(), v.integer(), v.minValue(1)),
+      }),
+    ),
+    workspaceAccess.fromProject("projectId"),
+    requireWorkspacePermission({ workspace: ["manage_settings"] }),
+    async (c) => {
+      const { projectId } = c.req.valid("param");
+      const repository = await attachGitLabRepository({
+        projectId,
+        ...c.req.valid("json"),
+      });
+      return c.json(repository, 201);
+    },
+  )
+  .delete(
+    "/project/:projectId/repositories/:repositoryId",
+    describeRoute({
+      operationId: "detachGitLabRepository",
+      tags: ["GitLab"],
+      description: "Remove a GitLab project webhook and detach its repository",
+      responses: { 200: { description: "GitLab repository detached" } },
+    }),
+    validator(
+      "param",
+      v.object({ projectId: v.string(), repositoryId: v.string() }),
+    ),
+    workspaceAccess.fromProject("projectId"),
+    requireWorkspacePermission({ workspace: ["manage_settings"] }),
+    async (c) => {
+      const params = c.req.valid("param");
+      await detachGitLabRepository(params);
+      return c.json({ success: true });
+    },
+  )
   .get(
     "/workspace/:workspaceId/connections",
     describeRoute({

@@ -9,6 +9,15 @@ const codec = createEncryptedSecretCodec({
   decryptionFailedMessage: "Failed to decrypt SCM credential",
 });
 
+const secretCodec = createEncryptedSecretCodec({
+  prefix: "scm-secret:v1:",
+  keyEnvironmentVariable: "SCM_SECRET_ENCRYPTION_KEY",
+  missingKeyMessage:
+    "SCM_SECRET_ENCRYPTION_KEY is required to store SCM secrets",
+  invalidPayloadMessage: "Invalid encrypted SCM secret payload",
+  decryptionFailedMessage: "Failed to decrypt SCM secret",
+});
+
 export type ScmCredential =
   | { type: "token"; accessToken: string }
   | {
@@ -53,4 +62,19 @@ export function decryptScmCredential(ciphertext: string): ScmCredential {
 export function maskScmToken(token: string): string {
   if (token.length <= 8) return "••••••••";
   return `${token.slice(0, 4)}…${token.slice(-4)}`;
+}
+
+export function encryptScmSecret(value: string): string {
+  const encrypted = secretCodec.encrypt(value);
+  if (!encrypted) throw new Error("Failed to encrypt SCM secret");
+  return encrypted;
+}
+
+export function decryptScmSecret(ciphertext: string): string {
+  if (!secretCodec.isEncrypted(ciphertext)) {
+    throw new Error("SCM secret is not encrypted");
+  }
+  const decrypted = secretCodec.decrypt(ciphertext);
+  if (!decrypted) throw new Error("SCM secret is empty");
+  return decrypted;
 }
