@@ -660,6 +660,10 @@ export function GitLabIntegrationSettings({
             <div className="space-y-1.5">
               <Label>{t("settings:gitlabIntegration.connection")}</Label>
               <Select
+                items={connections.map((connection) => ({
+                  label: connection.name,
+                  value: connection.id,
+                }))}
                 onValueChange={(value) => {
                   setSelectedConnectionId(value ?? "");
                   setSelectedProjectId("");
@@ -682,6 +686,10 @@ export function GitLabIntegrationSettings({
               <Label>{t("settings:gitlabIntegration.project")}</Label>
               <Select
                 disabled={projectsQuery.isLoading}
+                items={availableProjects.map((project) => ({
+                  label: project.path_with_namespace,
+                  value: String(project.id),
+                }))}
                 onValueChange={(value) => setSelectedProjectId(value ?? "")}
                 value={selectedProjectId}
               >
