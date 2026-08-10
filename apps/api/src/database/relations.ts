@@ -15,6 +15,7 @@ import {
   notificationTable,
   projectTable,
   scmConnectionTable,
+  scmOAuthStateTable,
   scmSyncJobTable,
   scmWebhookDeliveryTable,
   sessionTable,
@@ -51,6 +52,7 @@ export const userTableRelations = relations(userTable, ({ many, one }) => ({
   notificationWorkspaceRules: many(userNotificationWorkspaceRuleTable),
   sentInvitations: many(invitationTable),
   apikeys: many(apikeyTable),
+  scmOAuthStates: many(scmOAuthStateTable),
 }));
 
 export const sessionTableRelations = relations(sessionTable, ({ one }) => ({
@@ -81,6 +83,7 @@ export const workspaceTableRelations = relations(
     assets: many(assetTable),
     invitations: many(invitationTable),
     notificationWorkspaceRules: many(userNotificationWorkspaceRuleTable),
+    scmOAuthStates: many(scmOAuthStateTable),
   }),
 );
 
@@ -348,6 +351,24 @@ export const integrationTableRelations = relations(
   }),
 );
 
+export const scmOAuthStateTableRelations = relations(
+  scmOAuthStateTable,
+  ({ one }) => ({
+    workspace: one(workspaceTable, {
+      fields: [scmOAuthStateTable.workspaceId],
+      references: [workspaceTable.id],
+    }),
+    user: one(userTable, {
+      fields: [scmOAuthStateTable.userId],
+      references: [userTable.id],
+    }),
+    connection: one(scmConnectionTable, {
+      fields: [scmOAuthStateTable.connectionId],
+      references: [scmConnectionTable.id],
+    }),
+  }),
+);
+
 export const scmConnectionTableRelations = relations(
   scmConnectionTable,
   ({ one, many }) => ({
@@ -360,6 +381,7 @@ export const scmConnectionTableRelations = relations(
       references: [userTable.id],
     }),
     repositories: many(integrationRepositoryTable),
+    oauthStates: many(scmOAuthStateTable),
   }),
 );
 

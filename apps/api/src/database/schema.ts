@@ -863,6 +863,48 @@ export const scmConnectionTable = pgTable(
   ],
 );
 
+/** One-time, encrypted OAuth authorization state for workspace SCM connections. */
+export const scmOAuthStateTable = pgTable(
+  "scm_oauth_state",
+  {
+    id: text("id")
+      .$defaultFn(() => createId())
+      .primaryKey(),
+    provider: text("provider").notNull(),
+    stateHash: text("state_hash").notNull().unique(),
+    workspaceId: text("workspace_id")
+      .notNull()
+      .references(() => workspaceTable.id, {
+        onDelete: "cascade",
+        onUpdate: "cascade",
+      }),
+    userId: text("user_id")
+      .notNull()
+      .references(() => userTable.id, {
+        onDelete: "cascade",
+        onUpdate: "cascade",
+      }),
+    connectionId: text("connection_id").references(
+      () => scmConnectionTable.id,
+      {
+        onDelete: "set null",
+        onUpdate: "cascade",
+      },
+    ),
+    connectionName: text("connection_name").notNull(),
+    codeVerifierCiphertext: text("code_verifier_ciphertext").notNull(),
+    expiresAt: timestamp("expires_at", { mode: "date" }).notNull(),
+    consumedAt: timestamp("consumed_at", { mode: "date" }),
+    createdAt: timestamp("created_at", { mode: "date" }).defaultNow().notNull(),
+  },
+  (table) => [
+    index("scm_oauth_state_workspaceId_idx").on(table.workspaceId),
+    index("scm_oauth_state_userId_idx").on(table.userId),
+    index("scm_oauth_state_connectionId_idx").on(table.connectionId),
+    index("scm_oauth_state_expiresAt_idx").on(table.expiresAt),
+  ],
+);
+
 /** A concrete remote repository attached to a provider integration anchor. */
 export const integrationRepositoryTable = pgTable(
   "integration_repository",
