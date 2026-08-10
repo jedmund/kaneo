@@ -99,6 +99,22 @@ export function registerTools(
   );
 
   server.registerTool(
+    "list_project_repositories",
+    {
+      description:
+        "List active source repositories that can be targeted when creating a task.",
+      inputSchema: z.object({ projectId: nonEmptyString }),
+    },
+    async (args) =>
+      run(() =>
+        client.json(
+          `/api/scm/repositories/project/${encodeURIComponent(args.projectId)}`,
+          { method: "GET" },
+        ),
+      ),
+  );
+
+  server.registerTool(
     "create_project",
     {
       description: "Create a project in a workspace.",
@@ -248,6 +264,9 @@ export function registerTools(
         startDate: optionalIsoDateTimeSchema,
         dueDate: optionalIsoDateTimeSchema,
         userId: optionalNonEmptyString,
+        integrationRepositoryId: optionalNonEmptyString.describe(
+          "Repository ID from list_project_repositories. Omit for a Kaneo-only task.",
+        ),
       }),
     },
     async (args) => {
@@ -265,6 +284,9 @@ export function registerTools(
       }
       if (args.userId !== undefined) {
         body.userId = args.userId;
+      }
+      if (args.integrationRepositoryId !== undefined) {
+        body.integrationRepositoryId = args.integrationRepositoryId;
       }
       return run(() =>
         client.json(`/api/task/${encodeURIComponent(args.projectId)}`, {
