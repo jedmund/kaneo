@@ -90,9 +90,19 @@ export async function findExternalLinkByTaskAndType(
   });
 }
 
-export async function findExternalLinksByTask(taskId: string) {
+export async function findExternalLinksByTask(
+  taskId: string,
+  integrationRepositoryId?: string,
+) {
+  const predicates = [eq(externalLinkTable.taskId, taskId)];
+  if (integrationRepositoryId) {
+    predicates.push(
+      eq(externalLinkTable.integrationRepositoryId, integrationRepositoryId),
+    );
+  }
+
   return db.query.externalLinkTable.findMany({
-    where: eq(externalLinkTable.taskId, taskId),
+    where: and(...predicates),
     with: {
       integration: true,
     },

@@ -31,7 +31,10 @@ export async function handleTaskTitleChanged(
   const { repositoryOwner, repositoryName } = config;
 
   try {
-    const links = await findExternalLinksByTask(event.taskId);
+    const links = await findExternalLinksByTask(
+      event.taskId,
+      context.integrationRepositoryId,
+    );
     const issueLink = links.find(
       (link) =>
         link.integrationId === context.integrationId &&

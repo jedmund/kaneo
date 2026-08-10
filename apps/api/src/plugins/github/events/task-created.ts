@@ -21,7 +21,7 @@ export async function handleTaskCreated(
 ): Promise<void> {
   const githubApp = getGithubApp();
   if (!githubApp) {
-    return;
+    throw new Error("GitHub app is not configured");
   }
 
   const config = context.config as GitHubConfig;
@@ -31,30 +31,48 @@ export async function handleTaskCreated(
     event.taskId,
     context.integrationId,
     "issue",
+    context.integrationRepositoryId,
   );
 
   if (existingLink) {
     return;
   }
 
+  let installationId = config.installationId;
+  if (!installationId) {
+    installationId = await getInstallationIdForRepo(
+      repositoryOwner,
+      repositoryName,
+    );
+  }
+
+  const octokit = await githubApp.getInstallationOctokit(installationId);
+
+  const createdIssue = await octokit.rest.issues.create({
+    owner: repositoryOwner,
+    repo: repositoryName,
+    title: formatIssueTitle(event.title),
+    body: formatIssueBody(event.description, event.taskId),
+  });
+
+  await createExternalLink({
+    taskId: event.taskId,
+    integrationId: context.integrationId,
+    integrationRepositoryId: context.integrationRepositoryId,
+    resourceType: "issue",
+    externalId: createdIssue.data.number.toString(),
+    url: createdIssue.data.html_url,
+    title: createdIssue.data.title,
+    metadata: {
+      state: createdIssue.data.state,
+      createdFrom: "kaneo",
+    },
+  });
+
+  // The durable job's contract is to create and link exactly one issue.
+  // Provider-side decoration stays best effort after the link is recorded so
+  // a transient label/comment failure cannot duplicate the issue on retry.
   try {
-    let installationId = config.installationId;
-    if (!installationId) {
-      installationId = await getInstallationIdForRepo(
-        repositoryOwner,
-        repositoryName,
-      );
-    }
-
-    const octokit = await githubApp.getInstallationOctokit(installationId);
-
-    const createdIssue = await octokit.rest.issues.create({
-      owner: repositoryOwner,
-      repo: repositoryName,
-      title: formatIssueTitle(event.title),
-      body: formatIssueBody(event.description, event.taskId),
-    });
-
     const labels = getLabelsForIssue(event.priority, event.status);
     await addLabelsToIssue(
       octokit,
@@ -63,19 +81,6 @@ export async function handleTaskCreated(
       createdIssue.data.number,
       labels,
     );
-
-    await createExternalLink({
-      taskId: event.taskId,
-      integrationId: context.integrationId,
-      resourceType: "issue",
-      externalId: createdIssue.data.number.toString(),
-      url: createdIssue.data.html_url,
-      title: createdIssue.data.title,
-      metadata: {
-        state: createdIssue.data.state,
-        createdFrom: "kaneo",
-      },
-    });
 
     if (config.commentTaskLinkOnGitHubIssue !== false) {
       const project = await db.query.projectTable.findFirst({
@@ -97,6 +102,6 @@ export async function handleTaskCreated(
       }
     }
   } catch (error) {
-    console.error("Failed to create GitHub issue:", error);
+    console.error("Failed to decorate newly created GitHub issue:", error);
   }
 }

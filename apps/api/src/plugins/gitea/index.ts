@@ -10,6 +10,7 @@ import { handleTaskTitleChanged } from "./events/task-title-changed";
 export const giteaPlugin: IntegrationPlugin = {
   type: "gitea",
   name: "Gitea",
+  kind: "scm",
   onTaskCreated: handleTaskCreated,
   onTaskStatusChanged: handleTaskStatusChanged,
   onTaskPriorityChanged: handleTaskPriorityChanged,

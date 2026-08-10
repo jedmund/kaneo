@@ -1,8 +1,15 @@
 import { and, eq, max } from "drizzle-orm";
 import { HTTPException } from "hono/http-exception";
 import db from "../../database";
-import { columnTable, taskTable, userTable } from "../../database/schema";
+import {
+  columnTable,
+  scmSyncJobTable,
+  taskTable,
+  userTable,
+} from "../../database/schema";
 import { publishEvent } from "../../events";
+import { processScmSyncJob } from "../../plugins/registry";
+import { requireProjectRepository } from "../../scm/repositories";
 import { assertValidTaskStatus } from "../validate-task-fields";
 import { claimTaskNumber } from "./claim-task-numbers";
 
@@ -16,6 +23,7 @@ async function createTask({
   dueDate,
   description,
   priority,
+  integrationRepositoryId,
 }: {
   projectId: string;
   currentUserId: string;
@@ -26,11 +34,16 @@ async function createTask({
   dueDate?: Date;
   description?: string;
   priority?: string;
+  integrationRepositoryId?: string;
 }) {
   const resolvedStatus = status || "to-do";
   const resolvedPriority = priority || "no-priority";
 
   await assertValidTaskStatus(resolvedStatus, projectId);
+
+  if (integrationRepositoryId) {
+    await requireProjectRepository(projectId, integrationRepositoryId);
+  }
 
   const [assignee] = await db
     .select({ name: userTable.name })
@@ -58,7 +71,7 @@ async function createTask({
 
   const nextPosition = (maxPositionResult?.maxPosition ?? 0) + 1;
 
-  const createdTask = await db.transaction(async (tx) => {
+  const result = await db.transaction(async (tx) => {
     const taskNumber = await claimTaskNumber(projectId, tx);
 
     const [task] = await tx
@@ -78,8 +91,35 @@ async function createTask({
       })
       .returning();
 
-    return task;
+    if (!task) return { task: undefined, syncJob: undefined };
+
+    const [syncJob] = integrationRepositoryId
+      ? await tx
+          .insert(scmSyncJobTable)
+          .values({
+            taskId: task.id,
+            integrationRepositoryId,
+            operation: "create_issue",
+            dedupeKey: `task:${task.id}:create_issue`,
+            payload: {
+              taskId: task.id,
+              projectId: task.projectId,
+              userId: task.userId ?? "",
+              title: task.title,
+              description: task.description,
+              priority: task.priority,
+              status: task.status,
+              number: task.number,
+              integrationRepositoryId,
+            },
+          })
+          .returning()
+      : [];
+
+    return { task, syncJob };
   });
+
+  const createdTask = result.task;
 
   if (!createdTask) {
     throw new HTTPException(500, {
@@ -96,9 +136,26 @@ async function createTask({
     content: null,
   });
 
+  if (result.syncJob) {
+    await processScmSyncJob(result.syncJob.id);
+  }
+
+  const syncJob = result.syncJob
+    ? await db.query.scmSyncJobTable.findFirst({
+        where: eq(scmSyncJobTable.id, result.syncJob.id),
+      })
+    : undefined;
+
   return {
     ...createdTask,
     assigneeName: assignee?.name,
+    scmSync: syncJob
+      ? {
+          id: syncJob.id,
+          status: syncJob.status,
+          lastError: syncJob.lastError,
+        }
+      : null,
   };
 }
 

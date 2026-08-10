@@ -38,6 +38,7 @@ import {
   requireBulkTaskPermission,
   requireTaskAssigneePermission,
 } from "./controllers/require-task-permission";
+import { targetTaskRepository } from "./controllers/target-task-repository";
 import updateTask from "./controllers/update-task";
 import updateTaskAssignee from "./controllers/update-task-assignee";
 import updateTaskDescription from "./controllers/update-task-description";
@@ -197,6 +198,7 @@ const task = new Hono<{
         priority: v.picklist(VALID_PRIORITIES),
         status: v.string(),
         userId: v.optional(v.string()),
+        integrationRepositoryId: v.optional(v.string()),
       }),
     ),
     workspaceAccess.fromProject("projectId"),
@@ -212,6 +214,7 @@ const task = new Hono<{
         priority,
         status,
         userId,
+        integrationRepositoryId,
       } = c.req.valid("json");
 
       const parsedStartDate =
@@ -235,9 +238,36 @@ const task = new Hono<{
         dueDate: parsedDueDate,
         priority,
         status,
+        integrationRepositoryId,
       });
 
       return c.json(task);
+    },
+  )
+  .post(
+    "/:id/scm-target",
+    describeRoute({
+      operationId: "targetTaskRepository",
+      tags: ["Tasks"],
+      description: "Create an external issue for an existing draft task",
+      responses: {
+        200: {
+          description: "Issue creation queued or completed",
+          content: { "application/json": { schema: resolver(v.any()) } },
+        },
+      },
+    }),
+    validator("param", v.object({ id: v.string() })),
+    validator("json", v.object({ integrationRepositoryId: v.string() })),
+    workspaceAccess.fromTask(),
+    requireWorkspacePermission({ task: ["update"] }),
+    requireEntitlement,
+    async (c) => {
+      const { id } = c.req.valid("param");
+      const { integrationRepositoryId } = c.req.valid("json");
+      return c.json(
+        await targetTaskRepository({ taskId: id, integrationRepositoryId }),
+      );
     },
   )
   .get(

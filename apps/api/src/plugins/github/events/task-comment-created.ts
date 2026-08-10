@@ -19,6 +19,7 @@ export async function handleTaskCommentCreated(
     event.taskId,
     context.integrationId,
     "issue",
+    context.integrationRepositoryId,
   );
 
   if (!existingLink) {

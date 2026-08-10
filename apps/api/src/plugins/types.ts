@@ -1,7 +1,19 @@
 export type PluginContext = {
   integrationId: string;
+  integrationRepositoryId?: string;
   projectId: string;
   config: Record<string, unknown>;
+  repository?: {
+    id: string;
+    connectionId: string | null;
+    provider: string;
+    providerRepositoryId: string;
+    fullPath: string;
+    remoteOrigin: string;
+    webUrl: string;
+    defaultBranch: string | null;
+    metadata: unknown;
+  };
 };
 
 export type TaskCreatedEvent = {
@@ -13,6 +25,8 @@ export type TaskCreatedEvent = {
   priority: string | null;
   status: string;
   number: number;
+  integrationRepositoryId?: string;
+  scmSyncJobId?: string;
 };
 
 export type TaskStatusChangedEvent = {
@@ -146,6 +160,7 @@ export type ConfigValidator = (
 export type IntegrationPlugin = {
   type: string;
   name: string;
+  kind?: "scm";
 
   onTaskCreated?: TaskEventHandler<TaskCreatedEvent>;
   onTaskStatusChanged?: TaskEventHandler<TaskStatusChangedEvent>;

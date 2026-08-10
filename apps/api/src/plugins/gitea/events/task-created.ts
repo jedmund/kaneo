@@ -18,7 +18,7 @@ export async function handleTaskCreated(
 ): Promise<void> {
   const config = context.config as GiteaConfig;
   if (!config.baseUrl || !config.accessToken) {
-    return;
+    throw new Error("Gitea connection is not configured");
   }
 
   const { repositoryOwner, repositoryName } = config;
@@ -27,40 +27,42 @@ export async function handleTaskCreated(
     event.taskId,
     context.integrationId,
     "issue",
+    context.integrationRepositoryId,
   );
 
   if (existingLink) {
     return;
   }
 
+  const client = createGiteaClient(config);
+  const createdIssue = await client.createIssue(
+    repositoryOwner,
+    repositoryName,
+    {
+      title: formatIssueTitle(event.title),
+      body: formatIssueBody(event.description, event.taskId),
+    },
+  );
+
+  await createExternalLink({
+    taskId: event.taskId,
+    integrationId: context.integrationId,
+    integrationRepositoryId: context.integrationRepositoryId,
+    resourceType: "issue",
+    externalId: createdIssue.number.toString(),
+    url: createdIssue.html_url,
+    title: createdIssue.title,
+    metadata: {
+      state: createdIssue.state,
+      createdFrom: "kaneo",
+      lastOutboundStateSyncAt: Date.now(),
+    },
+  });
+
   try {
-    const client = createGiteaClient(config);
-    const createdIssue = await client.createIssue(
-      repositoryOwner,
-      repositoryName,
-      {
-        title: formatIssueTitle(event.title),
-        body: formatIssueBody(event.description, event.taskId),
-      },
-    );
-
-    await createExternalLink({
-      taskId: event.taskId,
-      integrationId: context.integrationId,
-      resourceType: "issue",
-      externalId: createdIssue.number.toString(),
-      url: createdIssue.html_url,
-      title: createdIssue.title,
-      metadata: {
-        state: createdIssue.state,
-        createdFrom: "kaneo",
-        lastOutboundStateSyncAt: Date.now(),
-      },
-    });
-
     const labels = getLabelsForIssue(event.priority, event.status);
     await addLabelsToIssueGitea(config, createdIssue.number, labels);
   } catch (error) {
-    console.error("Failed to create Gitea issue:", error);
+    console.error("Failed to decorate newly created Gitea issue:", error);
   }
 }

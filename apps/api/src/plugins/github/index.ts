@@ -11,6 +11,7 @@ import { setupWebhookHandlers } from "./webhook-handler";
 export const githubPlugin: IntegrationPlugin = {
   type: "github",
   name: "GitHub",
+  kind: "scm",
   onTaskCreated: handleTaskCreated,
   onTaskStatusChanged: handleTaskStatusChanged,
   onTaskPriorityChanged: handleTaskPriorityChanged,
