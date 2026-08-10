@@ -16,6 +16,7 @@ const savedEnvironment = {
 
 afterEach(() => {
   vi.restoreAllMocks();
+  vi.useRealTimers();
   for (const [key, value] of Object.entries(savedEnvironment)) {
     if (value === undefined) delete process.env[key];
     else process.env[key] = value;
@@ -160,6 +161,39 @@ describe("GitLab URL routing", () => {
         new URLSearchParams(),
       ),
     ).rejects.not.toThrow(/oauth-secret/);
+  });
+
+  it("keeps the timeout active while consuming the response body", async () => {
+    process.env.KANEO_ALLOW_PRIVATE_WEBHOOK_DESTINATIONS = "true";
+    vi.useFakeTimers();
+    vi.spyOn(globalThis, "fetch").mockImplementation(async (_url, init) => {
+      const signal = init?.signal;
+      const body = new ReadableStream({
+        start(controller) {
+          signal?.addEventListener(
+            "abort",
+            () => controller.error(new DOMException("Aborted", "AbortError")),
+            { once: true },
+          );
+        },
+      });
+      return new Response(body, { status: 200 });
+    });
+
+    const request = gitlabFetch(
+      {
+        publicUrl: "https://gitlab.example",
+        auth: { type: "token", accessToken: "token" },
+      },
+      "/user",
+    );
+    const rejection = expect(request).rejects.toMatchObject({
+      name: "GitLabApiError",
+      status: 408,
+    });
+    await vi.advanceTimersByTimeAsync(15_000);
+
+    await rejection;
   });
 });
 

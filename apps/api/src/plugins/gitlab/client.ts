@@ -157,7 +157,7 @@ async function fetchGitLabOrigin(
   internalUrlValue: string | undefined,
   path: string,
   init?: RequestInit,
-): Promise<Response> {
+): Promise<{ response: Response; text: string }> {
   const publicUrl = normalizeGitLabUrl(publicUrlValue);
   const internalUrl = normalizeGitLabUrl(
     internalUrlValue ?? resolveGitLabInternalUrl(publicUrl),
@@ -193,7 +193,11 @@ async function fetchGitLabOrigin(
         response.status,
       );
     }
-    return response;
+    // Keep the abort timer alive until the response stream is fully consumed.
+    // fetch() resolves as soon as headers arrive, while response.text() can
+    // still stall indefinitely on a slow or malicious peer.
+    const text = await response.text();
+    return { response, text };
   } catch (error) {
     if (error instanceof GitLabApiError) throw error;
     if (error instanceof Error && error.name === "AbortError" && timedOut) {
@@ -214,7 +218,7 @@ export async function gitlabOAuthFetch<T>(
   path: "/oauth/token" | "/oauth/revoke",
   form: URLSearchParams,
 ): Promise<T | undefined> {
-  const response = await fetchGitLabOrigin(
+  const { response, text: responseText } = await fetchGitLabOrigin(
     options.publicUrl,
     options.internalUrl,
     path,
@@ -228,7 +232,6 @@ export async function gitlabOAuthFetch<T>(
     },
   );
 
-  const responseText = await response.text();
   if (!response.ok) {
     throw new GitLabApiError(
       `GitLab OAuth request failed (${response.status})`,
@@ -270,7 +273,7 @@ export async function gitlabFetch<T>(
     options.internalUrl ?? resolveGitLabInternalUrl(publicUrl),
   );
   const apiPath = path.startsWith("/") ? path : `/${path}`;
-  const response = await fetchGitLabOrigin(
+  const { response, text } = await fetchGitLabOrigin(
     publicUrl,
     internalUrl,
     `/api/v4${apiPath}`,
@@ -285,7 +288,6 @@ export async function gitlabFetch<T>(
     },
   );
 
-  const text = await response.text();
   if (!response.ok) {
     let detail = text;
     try {
