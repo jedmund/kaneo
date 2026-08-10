@@ -1,7 +1,19 @@
 export type PluginContext = {
   integrationId: string;
+  integrationRepositoryId?: string;
   projectId: string;
   config: Record<string, unknown>;
+  repository?: {
+    id: string;
+    connectionId: string | null;
+    provider: string;
+    providerRepositoryId: string;
+    fullPath: string;
+    remoteOrigin: string;
+    webUrl: string;
+    defaultBranch: string | null;
+    metadata: unknown;
+  };
 };
 
 export type TaskCreatedEvent = {
@@ -13,6 +25,16 @@ export type TaskCreatedEvent = {
   priority: string | null;
   status: string;
   number: number;
+  integrationRepositoryId?: string;
+  scmSyncJobId?: string;
+  scmSyncAttempt?: number;
+};
+
+export type ReconciledScmIssue = {
+  externalId: string;
+  url: string;
+  title: string | null;
+  metadata?: Record<string, unknown>;
 };
 
 export type TaskStatusChangedEvent = {
@@ -139,6 +161,11 @@ export type MetadataProvider = (
   context: PluginContext,
 ) => Promise<ExternalMetadata[]>;
 
+export type TaskCreatedReconciler = (
+  event: TaskCreatedEvent,
+  context: PluginContext,
+) => Promise<ReconciledScmIssue | null>;
+
 export type ConfigValidator = (
   config: unknown,
 ) => Promise<{ valid: boolean; errors?: string[] }>;
@@ -146,8 +173,10 @@ export type ConfigValidator = (
 export type IntegrationPlugin = {
   type: string;
   name: string;
+  kind?: "scm";
 
   onTaskCreated?: TaskEventHandler<TaskCreatedEvent>;
+  reconcileTaskCreated?: TaskCreatedReconciler;
   onTaskStatusChanged?: TaskEventHandler<TaskStatusChangedEvent>;
   onTaskPriorityChanged?: TaskEventHandler<TaskPriorityChangedEvent>;
   onTaskTitleChanged?: TaskEventHandler<TaskTitleChangedEvent>;

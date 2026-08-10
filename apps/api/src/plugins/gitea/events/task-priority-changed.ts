@@ -13,7 +13,10 @@ export async function handleTaskPriorityChanged(
   }
 
   try {
-    const links = await findExternalLinksByTask(event.taskId);
+    const links = await findExternalLinksByTask(
+      event.taskId,
+      context.integrationRepositoryId,
+    );
     const issueLink = links.find(
       (link) =>
         link.integrationId === context.integrationId &&

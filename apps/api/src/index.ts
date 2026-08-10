@@ -48,6 +48,7 @@ import { migrateGitHubIntegration } from "./plugins/github/migration";
 import project from "./project";
 import { getPublicProject } from "./project/controllers/get-public-project";
 import { initializeScheduler, shutdownScheduler } from "./scheduler";
+import scm from "./scm";
 import { migrateLegacyScmRepositories } from "./scm/migrate-legacy-repositories";
 import search from "./search";
 import slackIntegration from "./slack-integration";
@@ -567,6 +568,7 @@ export function createApp() {
     notificationPreferences,
   );
   const searchApi = api.route("/search", search);
+  const scmApi = api.route("/scm", scm);
   const githubIntegrationApi = api.route(
     "/github-integration",
     githubIntegration,
@@ -747,6 +749,7 @@ export function createApp() {
     projectApi,
     publicProjectApi,
     searchApi,
+    scmApi,
     slackIntegrationApi,
     taskApi,
     taskRelationApi,
@@ -865,6 +868,7 @@ const {
   projectApi,
   publicProjectApi,
   searchApi,
+  scmApi,
   slackIntegrationApi,
   taskApi,
   taskRelationApi,
@@ -898,6 +902,7 @@ export type AppType =
   | typeof notificationApi
   | typeof notificationPreferencesApi
   | typeof searchApi
+  | typeof scmApi
   | typeof githubIntegrationApi
   | typeof giteaIntegrationApi
   | typeof genericWebhookIntegrationApi

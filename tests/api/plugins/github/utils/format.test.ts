@@ -5,6 +5,7 @@ import {
   formatSyncComment,
   formatTaskDescriptionFromIssue,
   getLabelsForIssue,
+  hasScmSyncJobMarker,
 } from "../../../../../apps/api/src/plugins/github/utils/format";
 
 describe("github format helpers", () => {
@@ -24,6 +25,15 @@ describe("github format helpers", () => {
     expect(formatSyncComment("task_123")).toBe("Task: task_123");
     expect(formatTaskDescriptionFromIssue("Issue body")).toBe("Issue body");
     expect(formatTaskDescriptionFromIssue(null)).toBe("");
+  });
+
+  it("adds and recognizes a durable SCM sync job marker", () => {
+    const body = formatIssueBody("Body text", "task_123", "sync_job_456");
+
+    expect(body).toContain("<sub>Task: task_123</sub>");
+    expect(body).toContain("<!-- kaneo-scm-sync-job: sync_job_456 -->");
+    expect(hasScmSyncJobMarker(body, "sync_job_456")).toBe(true);
+    expect(hasScmSyncJobMarker(body, "another_job")).toBe(false);
   });
 
   it("builds labels while skipping no-priority", () => {

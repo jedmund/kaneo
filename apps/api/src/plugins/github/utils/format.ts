@@ -5,17 +5,31 @@ export function formatIssueTitle(taskTitle: string): string {
 export function formatIssueBody(
   taskDescription: string | null,
   taskId: string,
+  scmSyncJobId?: string,
 ): string {
   const description = taskDescription || "";
+  const markers = [
+    `<sub>Task: ${taskId}</sub>`,
+    ...(scmSyncJobId ? [`<!-- kaneo-scm-sync-job: ${scmSyncJobId} -->`] : []),
+  ].join("\n");
 
   if (!description.trim()) {
-    return `<sub>Task: ${taskId}</sub>`;
+    return markers;
   }
 
   return `${description}
 
 ---
-<sub>Task: ${taskId}</sub>`;
+${markers}`;
+}
+
+export function hasScmSyncJobMarker(
+  issueBody: string | null | undefined,
+  scmSyncJobId: string,
+): boolean {
+  return (
+    issueBody?.includes(`<!-- kaneo-scm-sync-job: ${scmSyncJobId} -->`) ?? false
+  );
 }
 
 export function formatSyncComment(taskId: string): string {

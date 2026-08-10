@@ -47,6 +47,52 @@ describe("registerTools", () => {
       expect.any(Object),
       expect.any(Function),
     );
+    expect(server.registerTool).toHaveBeenCalledWith(
+      "list_project_repositories",
+      expect.any(Object),
+      expect.any(Function),
+    );
+  });
+
+  it("lists repositories for a project", async () => {
+    const { server, tools } = createServerMock();
+    const client = { json: vi.fn().mockResolvedValue([]) };
+
+    registerTools(server as never, { client: client as never });
+    await tools.get("list_project_repositories")?.handler({
+      projectId: "project 1",
+    });
+
+    expect(client.json).toHaveBeenCalledWith(
+      "/api/scm/repositories/project/project%201",
+      { method: "GET" },
+    );
+  });
+
+  it("forwards an optional repository target when creating a task", async () => {
+    const { server, tools } = createServerMock();
+    const client = { json: vi.fn().mockResolvedValue({ id: "task-1" }) };
+
+    registerTools(server as never, { client: client as never });
+    await tools.get("create_task")?.handler({
+      projectId: "project-1",
+      title: "Targeted task",
+      description: "",
+      priority: "low",
+      status: "to-do",
+      integrationRepositoryId: "repository-1",
+    });
+
+    expect(client.json).toHaveBeenCalledWith("/api/task/project-1", {
+      method: "POST",
+      body: JSON.stringify({
+        title: "Targeted task",
+        description: "",
+        priority: "low",
+        status: "to-do",
+        integrationRepositoryId: "repository-1",
+      }),
+    });
   });
 
   it("builds the expected query string for list_tasks", async () => {

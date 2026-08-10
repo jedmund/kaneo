@@ -89,6 +89,8 @@
 			"createTask": {
 				"breadcrumbTask": "TASK",
 				"selectProject": "Select project",
+				"repositoryTarget": "External repository",
+				"kaneoOnly": "Kaneo only",
 				"title": "New Task",
 				"description": "Create a new task by providing a title, description, and other details.",
 				"taskTitlePlaceholder": "Task title",

@@ -10,6 +10,7 @@ const createTask = vi.fn(async (input: Record<string, unknown>) => ({
   projectId: input.projectId,
   createdAt: "2026-08-05T00:00:00.000Z",
 }));
+const targetTaskRepository = vi.fn();
 
 afterEach(() => {
   cleanup();
@@ -31,6 +32,10 @@ vi.mock("@/hooks/mutations/label/use-create-label", () => ({
 
 vi.mock("@/hooks/mutations/task/use-create-task", () => ({
   default: () => ({ mutateAsync: createTask }),
+}));
+
+vi.mock("@/hooks/mutations/task/use-target-task-repository", () => ({
+  useTargetTaskRepository: () => ({ mutateAsync: targetTaskRepository }),
 }));
 
 vi.mock("@/hooks/mutations/task/use-delete-task", () => ({
@@ -69,6 +74,28 @@ vi.mock("@/hooks/queries/project/use-get-projects", () => ({
       { id: "project-1", name: "Alpha", slug: "alp" },
       { id: "project-2", name: "Beta", slug: "bet" },
     ],
+  }),
+}));
+
+vi.mock("@/hooks/queries/scm/use-project-repositories", () => ({
+  useProjectRepositories: (projectId: string) => ({
+    data:
+      projectId === "project-1"
+        ? [
+            {
+              id: "repository-1",
+              integrationId: "integration-1",
+              connectionId: null,
+              projectId,
+              provider: "gitlab",
+              providerRepositoryId: "42",
+              fullPath: "team/api",
+              webUrl: "https://git.example.test/team/api",
+              defaultBranch: "main",
+              isActive: true,
+            },
+          ]
+        : [],
   }),
 }));
 
@@ -115,6 +142,10 @@ describe("CreateTaskModal project picker", () => {
         }),
       );
     });
+    expect(createTask.mock.calls[0]?.[0]).toHaveProperty(
+      "integrationRepositoryId",
+      undefined,
+    );
   });
 
   it("hides the picker when a project is in scope from the route", () => {
@@ -127,5 +158,40 @@ describe("CreateTaskModal project picker", () => {
     expect(
       screen.queryByText("common:modals.createTask.selectProject"),
     ).toBeNull();
+  });
+
+  it("targets the repository selected for a new task", async () => {
+    useLocation.mockReturnValue({
+      pathname: "/dashboard/workspace/workspace-1/project/project-1/board",
+    });
+
+    render(<CreateTaskModal open onClose={vi.fn()} projectId="project-1" />);
+
+    fireEvent.click(
+      screen.getByRole("combobox", {
+        name: "common:modals.createTask.repositoryTarget",
+      }),
+    );
+    const repositoryOption = await screen.findByText("team/api");
+    fireEvent.pointerDown(repositoryOption, { pointerType: "mouse" });
+    fireEvent.click(repositoryOption);
+
+    fireEvent.change(
+      screen.getByPlaceholderText(
+        "common:modals.createTask.taskTitlePlaceholder",
+      ),
+      { target: { value: "GitLab task" } },
+    );
+    fireEvent.submit(document.querySelector("form") as HTMLFormElement);
+
+    await vi.waitFor(() => {
+      expect(createTask).toHaveBeenCalledWith(
+        expect.objectContaining({
+          title: "GitLab task",
+          projectId: "project-1",
+          integrationRepositoryId: "repository-1",
+        }),
+      );
+    });
   });
 });
