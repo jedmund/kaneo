@@ -618,7 +618,9 @@
 				"importError": "Error al importar issues",
 				"commentOnEnabled": "Kaneo añadirá un comentario con un enlace a la tarea en los nuevos issues",
 				"commentOnDisabled": "Los comentarios con enlaces a tareas en nuevos issues están desactivados",
-				"settingsUpdateError": "Error al actualizar la integración de GitHub"
+				"settingsUpdateError": "Error al actualizar la integración de GitHub",
+				"attachError": "Failed to attach GitHub repository",
+				"repositoryAttached": "GitHub repository attached"
 			},
 			"connectionStatus": "Estado de la conexión",
 			"connectedActive": "Repositorio conectado y activo",
@@ -654,7 +656,16 @@
 			"importSectionHint": "Importar issues existentes de GitHub como tareas",
 			"importing": "Importando...",
 			"importIssues": "Importar Issues",
-			"importDisabledHint": "Completa la configuración del repositorio para activar la importación"
+			"importDisabledHint": "Completa la configuración del repositorio para activar la importación",
+			"addRepository": "Add repository",
+			"addRepositoryHint": "Choose a repository where the GitHub App is installed, or enter its owner and name manually.",
+			"addRepositoryTitle": "Add GitHub repository",
+			"browseRepositories": "Browse repositories",
+			"detach": "Detach",
+			"manualEntry": "or enter manually",
+			"noRepositories": "No GitHub repositories attached to this project.",
+			"repositoriesHint": "Tasks can target any attached GitHub repository.",
+			"repositoriesTitle": "Attached repositories"
 		},
 		"slackIntegration": {
 			"validation": {
@@ -794,7 +805,9 @@
 			"relativeJustNow": "ahora mismo",
 			"relativeMinutesAgo": "hace {{count}}m",
 			"relativeHoursAgo": "hace {{count}}h",
-			"relativeDaysAgo": "hace {{count}}d"
+			"relativeDaysAgo": "hace {{count}}d",
+			"allAttachedHint": "Every repository available to this GitHub App is already attached to the project.",
+			"allAttachedTitle": "All repositories are attached"
 		},
 		"tasksImportExport": {
 			"exportTasks": "Exportar tareas",

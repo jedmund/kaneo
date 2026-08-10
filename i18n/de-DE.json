@@ -721,7 +721,9 @@
 				"importError": "Issues konnten nicht importiert werden",
 				"commentOnEnabled": "Kaneo kommentiert bei neuen Issues mit einem Aufgabenlink",
 				"commentOnDisabled": "Aufgabenlink-Kommentare bei neuen Issues sind deaktiviert",
-				"settingsUpdateError": "GitHub-Integration konnte nicht aktualisiert werden"
+				"settingsUpdateError": "GitHub-Integration konnte nicht aktualisiert werden",
+				"attachError": "Failed to attach GitHub repository",
+				"repositoryAttached": "GitHub repository attached"
 			},
 			"connectionStatus": "Verbindungsstatus",
 			"connectedActive": "Repository verbunden und aktiv",
@@ -757,7 +759,16 @@
 			"importSectionHint": "Importiere vorhandene Issues aus deinem GitHub-Repository als Aufgaben",
 			"importing": "Wird importiert...",
 			"importIssues": "Issues importieren",
-			"importDisabledHint": "Vervollständige die Repository-Konfiguration oben, um den Import zu aktivieren"
+			"importDisabledHint": "Vervollständige die Repository-Konfiguration oben, um den Import zu aktivieren",
+			"addRepository": "Add repository",
+			"addRepositoryHint": "Choose a repository where the GitHub App is installed, or enter its owner and name manually.",
+			"addRepositoryTitle": "Add GitHub repository",
+			"browseRepositories": "Browse repositories",
+			"detach": "Detach",
+			"manualEntry": "or enter manually",
+			"noRepositories": "No GitHub repositories attached to this project.",
+			"repositoriesHint": "Tasks can target any attached GitHub repository.",
+			"repositoriesTitle": "Attached repositories"
 		},
 		"giteaIntegration": {
 			"validation": {
@@ -1017,7 +1028,9 @@
 			"relativeJustNow": "gerade eben",
 			"relativeMinutesAgo": "vor {{count}} Min.",
 			"relativeHoursAgo": "vor {{count}} Std.",
-			"relativeDaysAgo": "vor {{count}} Tg."
+			"relativeDaysAgo": "vor {{count}} Tg.",
+			"allAttachedHint": "Every repository available to this GitHub App is already attached to the project.",
+			"allAttachedTitle": "All repositories are attached"
 		},
 		"tasksImportExport": {
 			"exportTasks": "Aufgaben exportieren",

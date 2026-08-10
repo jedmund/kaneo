@@ -721,7 +721,9 @@
 				"importError": "Не вдалося імпортувати issues",
 				"commentOnEnabled": "Kaneo коментуватиме посилання на завдання в нових issues",
 				"commentOnDisabled": "Коментарі з посиланнями на завдання в нових issues вимкнено",
-				"settingsUpdateError": "Не вдалося оновити інтеґрацію з GitHub"
+				"settingsUpdateError": "Не вдалося оновити інтеґрацію з GitHub",
+				"attachError": "Failed to attach GitHub repository",
+				"repositoryAttached": "GitHub repository attached"
 			},
 			"connectionStatus": "Статус з'єднання",
 			"connectedActive": "Репозиторій підключено та активно",
@@ -757,7 +759,16 @@
 			"importSectionHint": "Імпортуйте наявні issues з вашого GitHub-репозиторію як завдання",
 			"importing": "Імпорт...",
 			"importIssues": "Імпортувати Issues",
-			"importDisabledHint": "Завершіть налаштування репозиторію вище, щоб увімкнути імпорт"
+			"importDisabledHint": "Завершіть налаштування репозиторію вище, щоб увімкнути імпорт",
+			"addRepository": "Add repository",
+			"addRepositoryHint": "Choose a repository where the GitHub App is installed, or enter its owner and name manually.",
+			"addRepositoryTitle": "Add GitHub repository",
+			"browseRepositories": "Browse repositories",
+			"detach": "Detach",
+			"manualEntry": "or enter manually",
+			"noRepositories": "No GitHub repositories attached to this project.",
+			"repositoriesHint": "Tasks can target any attached GitHub repository.",
+			"repositoriesTitle": "Attached repositories"
 		},
 		"giteaIntegration": {
 			"validation": {
@@ -1017,7 +1028,9 @@
 			"relativeJustNow": "щойно",
 			"relativeMinutesAgo": "{{count}} хв. тому",
 			"relativeHoursAgo": "{{count}} год. тому",
-			"relativeDaysAgo": "{{count}} дн. тому"
+			"relativeDaysAgo": "{{count}} дн. тому",
+			"allAttachedHint": "Every repository available to this GitHub App is already attached to the project.",
+			"allAttachedTitle": "All repositories are attached"
 		},
 		"tasksImportExport": {
 			"exportTasks": "Експортувати завдання",

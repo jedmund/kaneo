@@ -618,7 +618,9 @@
 				"importError": "Importeren issues mislukt",
 				"commentOnEnabled": "Kaneo zal reageren met een taaklink op nieuwe issues",
 				"commentOnDisabled": "Reacties met taaklinks op nieuwe issues staan uit",
-				"settingsUpdateError": "Bijwerken GitHub integratie mislukt"
+				"settingsUpdateError": "Bijwerken GitHub integratie mislukt",
+				"attachError": "Failed to attach GitHub repository",
+				"repositoryAttached": "GitHub repository attached"
 			},
 			"connectionStatus": "Verbindingsstatus",
 			"connectedActive": "Repository verbonden en actief",
@@ -654,7 +656,16 @@
 			"importSectionHint": "Importeer bestaande issues van GitHub als taken",
 			"importing": "Importeren...",
 			"importIssues": "Issues importeren",
-			"importDisabledHint": "Voltooi de configuratie hierboven om importeren mogelijk te maken"
+			"importDisabledHint": "Voltooi de configuratie hierboven om importeren mogelijk te maken",
+			"addRepository": "Add repository",
+			"addRepositoryHint": "Choose a repository where the GitHub App is installed, or enter its owner and name manually.",
+			"addRepositoryTitle": "Add GitHub repository",
+			"browseRepositories": "Browse repositories",
+			"detach": "Detach",
+			"manualEntry": "or enter manually",
+			"noRepositories": "No GitHub repositories attached to this project.",
+			"repositoriesHint": "Tasks can target any attached GitHub repository.",
+			"repositoriesTitle": "Attached repositories"
 		},
 		"slackIntegration": {
 			"validation": {
@@ -794,7 +805,9 @@
 			"relativeJustNow": "zojuist",
 			"relativeMinutesAgo": "{{count}}m geleden",
 			"relativeHoursAgo": "{{count}}u geleden",
-			"relativeDaysAgo": "{{count}}d geleden"
+			"relativeDaysAgo": "{{count}}d geleden",
+			"allAttachedHint": "Every repository available to this GitHub App is already attached to the project.",
+			"allAttachedTitle": "All repositories are attached"
 		},
 		"tasksImportExport": {
 			"exportTasks": "Taken exporteren",

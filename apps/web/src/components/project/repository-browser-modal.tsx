@@ -31,6 +31,7 @@ import { cn } from "@/lib/cn";
 import { getInitials } from "@/lib/get-initials";
 
 type RepositoryBrowserModalProps = {
+  excludedRepositories?: string[];
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onSelectRepository: (repository: { owner: string; name: string }) => void;
@@ -38,6 +39,7 @@ type RepositoryBrowserModalProps = {
 };
 
 export function RepositoryBrowserModal({
+  excludedRepositories = [],
   open,
   onOpenChange,
   onSelectRepository,
@@ -58,18 +60,27 @@ export function RepositoryBrowserModal({
     enabled: open,
   });
 
-  const filteredRepositories = React.useMemo(() => {
+  const availableRepositories = React.useMemo(() => {
     if (!data?.repositories) return [];
 
-    if (!searchTerm) return data.repositories;
+    const excluded = new Set(
+      excludedRepositories.map((repository) => repository.toLowerCase()),
+    );
+    return data.repositories.filter(
+      (repository) => !excluded.has(repository.full_name.toLowerCase()),
+    );
+  }, [data?.repositories, excludedRepositories]);
+
+  const filteredRepositories = React.useMemo(() => {
+    if (!searchTerm) return availableRepositories;
 
     const search = searchTerm.toLowerCase();
-    return data.repositories.filter(
+    return availableRepositories.filter(
       (repo) =>
         repo.full_name.toLowerCase().includes(search) ||
         repo.description?.toLowerCase().includes(search),
     );
-  }, [data?.repositories, searchTerm]);
+  }, [availableRepositories, searchTerm]);
 
   const handleSelectRepository = (
     repository: ListRepositoriesResponse["repositories"][number],
@@ -201,6 +212,19 @@ export function RepositoryBrowserModal({
                 </div>
               )}
 
+              {data.repositories.length > 0 &&
+                availableRepositories.length === 0 && (
+                  <div className="px-6 py-12 text-center">
+                    <Check className="mx-auto mb-4 size-12 text-muted-foreground" />
+                    <h3 className="mb-2 font-medium text-lg">
+                      {t("settings:repositoryBrowser.allAttachedTitle")}
+                    </h3>
+                    <p className="text-muted-foreground text-sm">
+                      {t("settings:repositoryBrowser.allAttachedHint")}
+                    </p>
+                  </div>
+                )}
+
               {filteredRepositories.length > 0 && (
                 <div className="px-6 py-4 space-y-2">
                   {filteredRepositories.map((repository) => (
@@ -281,7 +305,7 @@ export function RepositoryBrowserModal({
               )}
 
               {filteredRepositories.length === 0 &&
-                data.repositories.length > 0 && (
+                availableRepositories.length > 0 && (
                   <div className="text-center py-12 px-6">
                     <Search className="w-12 h-12 text-muted-foreground mx-auto mb-4" />
                     <h3 className="text-lg font-medium mb-2">
@@ -303,7 +327,7 @@ export function RepositoryBrowserModal({
               <div className="flex items-center justify-between text-sm text-muted-foreground">
                 <span>
                   {t("settings:repositoryBrowser.footerSummary", {
-                    repoCount: data.repositories.length,
+                    repoCount: availableRepositories.length,
                     installationCount: data.installations.length,
                   })}
                 </span>

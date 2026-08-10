@@ -883,7 +883,9 @@
 				"importError": "Issues आयात करने में विफल",
 				"commentOnEnabled": "Kaneo नई issues पर कार्य लिंक के साथ टिप्पणी करेगा",
 				"commentOnDisabled": "नई issues पर कार्य लिंक टिप्पणियाँ बंद हैं",
-				"settingsUpdateError": "GitHub एकीकरण अपडेट करने में विफल"
+				"settingsUpdateError": "GitHub एकीकरण अपडेट करने में विफल",
+				"attachError": "Failed to attach GitHub repository",
+				"repositoryAttached": "GitHub repository attached"
 			},
 			"connectionStatus": "कनेक्शन स्थिति",
 			"connectedActive": "रिपॉज़िटरी जुड़ी और सक्रिय",
@@ -919,7 +921,16 @@
 			"importSectionHint": "अपनी GitHub रिपॉज़िटरी से मौजूदा issues को कार्यों के रूप में आयात करें",
 			"importing": "आयात हो रहा है...",
 			"importIssues": "Issues आयात करें",
-			"importDisabledHint": "आयात सक्षम करने के लिए ऊपर रिपॉज़िटरी कॉन्फ़िगरेशन पूरा करें"
+			"importDisabledHint": "आयात सक्षम करने के लिए ऊपर रिपॉज़िटरी कॉन्फ़िगरेशन पूरा करें",
+			"addRepository": "Add repository",
+			"addRepositoryHint": "Choose a repository where the GitHub App is installed, or enter its owner and name manually.",
+			"addRepositoryTitle": "Add GitHub repository",
+			"browseRepositories": "Browse repositories",
+			"detach": "Detach",
+			"manualEntry": "or enter manually",
+			"noRepositories": "No GitHub repositories attached to this project.",
+			"repositoriesHint": "Tasks can target any attached GitHub repository.",
+			"repositoriesTitle": "Attached repositories"
 		},
 		"giteaIntegration": {
 			"validation": {
@@ -1179,7 +1190,9 @@
 			"relativeJustNow": "अभी",
 			"relativeMinutesAgo": "{{count}} मिनट पहले",
 			"relativeHoursAgo": "{{count}} घंटे पहले",
-			"relativeDaysAgo": "{{count}} दिन पहले"
+			"relativeDaysAgo": "{{count}} दिन पहले",
+			"allAttachedHint": "Every repository available to this GitHub App is already attached to the project.",
+			"allAttachedTitle": "All repositories are attached"
 		},
 		"tasksImportExport": {
 			"exportTasks": "कार्य निर्यात करें",
