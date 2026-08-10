@@ -347,6 +347,12 @@
 								"selectProject": {
 									"type": "string"
 								},
+								"repositoryTarget": {
+									"type": "string"
+								},
+								"kaneoOnly": {
+									"type": "string"
+								},
 								"title": {
 									"type": "string"
 								},
@@ -479,6 +485,8 @@
 							"required": [
 								"breadcrumbTask",
 								"selectProject",
+								"repositoryTarget",
+								"kaneoOnly",
 								"title",
 								"description",
 								"taskTitlePlaceholder",

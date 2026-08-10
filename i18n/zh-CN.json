@@ -127,7 +127,9 @@
 					"terracotta": "赤陶",
 					"rose": "玫红",
 					"crimson": "深红"
-				}
+				},
+				"kaneoOnly": "Kaneo only",
+				"repositoryTarget": "External repository"
 			}
 		}
 	},

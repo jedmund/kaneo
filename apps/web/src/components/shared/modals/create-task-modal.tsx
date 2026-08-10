@@ -4,6 +4,7 @@ import {
   CalendarIcon,
   Check,
   FolderKanban,
+  GitBranch,
   Plus,
   Search,
   Tag,
@@ -37,12 +38,24 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover";
+import {
+  Select,
+  SelectGroup,
+  SelectGroupLabel,
+  SelectItem,
+  SelectPopup,
+  SelectSeparator,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import useCreateLabel from "@/hooks/mutations/label/use-create-label";
 import useCreateTask from "@/hooks/mutations/task/use-create-task";
 import { useDeleteTask } from "@/hooks/mutations/task/use-delete-task";
+import { useTargetTaskRepository } from "@/hooks/mutations/task/use-target-task-repository";
 import { useUpdateTask } from "@/hooks/mutations/task/use-update-task";
 import useGetLabelsByWorkspace from "@/hooks/queries/label/use-get-labels-by-workspace";
 import useGetProjects from "@/hooks/queries/project/use-get-projects";
+import { useProjectRepositories } from "@/hooks/queries/scm/use-project-repositories";
 import useActiveWorkspace from "@/hooks/queries/workspace/use-active-workspace";
 import { useGetActiveWorkspaceUsers } from "@/hooks/queries/workspace-users/use-get-active-workspace-users";
 import { useWorkspacePermission } from "@/hooks/use-workspace-permission";
@@ -191,6 +204,7 @@ function CreateTaskModal({
   const [createMore, setCreateMore] = useState(false);
   const [labels, setLabels] = useState<Label[]>([]);
   const [draftTask, setDraftTask] = useState<Task | null>(null);
+  const [selectedRepositoryId, setSelectedRepositoryId] = useState("");
 
   const [labelsOpen, setLabelsOpen] = useState(false);
   const [labelsStep, setLabelsStep] = useState<PopoverStep>("select");
@@ -210,6 +224,37 @@ function CreateTaskModal({
   const resolvedProject = explicitProjectId
     ? project
     : (workspaceProjects?.find((p) => p.id === resolvedProjectId) ?? null);
+  const { data: projectRepositories = [] } =
+    useProjectRepositories(resolvedProjectId);
+
+  const repositoryOptions = useMemo(
+    () => [
+      {
+        label: t("common:modals.createTask.kaneoOnly"),
+        provider: "kaneo",
+        value: "",
+      },
+      ...projectRepositories.map((repository) => ({
+        label: repository.fullPath,
+        provider: repository.provider,
+        value: repository.id,
+      })),
+    ],
+    [projectRepositories, t],
+  );
+  const selectedRepository =
+    repositoryOptions.find(
+      (repository) => repository.value === selectedRepositoryId,
+    ) ?? repositoryOptions[0];
+  const repositoriesByProvider = useMemo(() => {
+    const groups = new Map<string, typeof repositoryOptions>();
+    for (const repository of repositoryOptions.slice(1)) {
+      const items = groups.get(repository.provider) ?? [];
+      items.push(repository);
+      groups.set(repository.provider, items);
+    }
+    return groups;
+  }, [repositoryOptions]);
 
   const searchInputRef = useRef<HTMLInputElement>(null);
   const draftCreationPromiseRef = useRef<Promise<Task> | null>(null);
@@ -218,6 +263,7 @@ function CreateTaskModal({
   const { mutateAsync: createTask } = useCreateTask();
   const { mutateAsync: updateTask } = useUpdateTask();
   const { mutateAsync: deleteTask } = useDeleteTask();
+  const { mutateAsync: targetTaskRepository } = useTargetTaskRepository();
 
   const filteredLabels = (() => {
     const searchFiltered = workspaceLabels.filter((label) =>
@@ -259,6 +305,7 @@ function CreateTaskModal({
     draftCreationPromiseRef.current = null;
     didSubmitRef.current = false;
     setDraftTask(null);
+    setSelectedRepositoryId("");
     onClose();
 
     if (shouldDeleteDraft) {
@@ -411,8 +458,16 @@ function CreateTaskModal({
               startDate: startDate ? startDate.toISOString() : undefined,
               dueDate: dueDate ? dueDate.toISOString() : undefined,
               status: taskStatus,
+              integrationRepositoryId: selectedRepositoryId || undefined,
             }),
           );
+
+      if (draftTask && selectedRepositoryId) {
+        await targetTaskRepository({
+          taskId: savedTask.id,
+          integrationRepositoryId: selectedRepositoryId,
+        });
+      }
 
       for (const label of labels) {
         try {
@@ -450,6 +505,7 @@ function CreateTaskModal({
         draftCreationPromiseRef.current = null;
         didSubmitRef.current = false;
         setDraftTask(null);
+        setSelectedRepositoryId("");
       } else {
         handleClose();
       }
@@ -701,9 +757,10 @@ function CreateTaskModal({
                           key={workspaceProject.id}
                           type="button"
                           className="w-full flex items-center gap-2 px-2 py-1.5 text-sm hover:bg-accent/50 text-left transition-colors h-8"
-                          onClick={() =>
-                            setSelectedProjectId(workspaceProject.id)
-                          }
+                          onClick={() => {
+                            setSelectedProjectId(workspaceProject.id);
+                            setSelectedRepositoryId("");
+                          }}
                         >
                           <span className="text-sm truncate">
                             {workspaceProject.name}
@@ -717,6 +774,45 @@ function CreateTaskModal({
                   </PopoverContent>
                 </Popover>
               )}
+              <Select
+                items={repositoryOptions}
+                value={selectedRepository}
+                itemToStringValue={(item) => item.label}
+                onValueChange={(item) =>
+                  setSelectedRepositoryId(item?.value ?? "")
+                }
+              >
+                <SelectTrigger
+                  aria-label={t("common:modals.createTask.repositoryTarget")}
+                  size="sm"
+                  className="h-8 w-auto max-w-64 gap-1.5 rounded-md px-2.5 text-xs font-medium"
+                >
+                  <GitBranch className="size-3.5" />
+                  <SelectValue>{selectedRepository?.label}</SelectValue>
+                </SelectTrigger>
+                <SelectPopup alignItemWithTrigger={false} className="min-w-64">
+                  {repositoryOptions[0] && (
+                    <SelectItem value={repositoryOptions[0]}>
+                      {repositoryOptions[0].label}
+                    </SelectItem>
+                  )}
+                  {repositoriesByProvider.size > 0 && <SelectSeparator />}
+                  {Array.from(repositoriesByProvider.entries()).map(
+                    ([provider, repositories]) => (
+                      <SelectGroup key={provider}>
+                        <SelectGroupLabel className="capitalize">
+                          {provider}
+                        </SelectGroupLabel>
+                        {repositories.map((repository) => (
+                          <SelectItem key={repository.value} value={repository}>
+                            {repository.label}
+                          </SelectItem>
+                        ))}
+                      </SelectGroup>
+                    ),
+                  )}
+                </SelectPopup>
+              </Select>
               <div className="flex items-center gap-1.5 px-2.5 py-1.5 bg-accent/50 text-foreground rounded-md text-xs font-medium border border-border">
                 <div className="w-1.5 h-1.5 bg-foreground rounded-full" />
                 {statusLabel}

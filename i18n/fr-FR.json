@@ -127,7 +127,9 @@
 					"terracotta": "Terre cuite",
 					"rose": "Rose",
 					"crimson": "Cramoisi"
-				}
+				},
+				"kaneoOnly": "Kaneo only",
+				"repositoryTarget": "External repository"
 			}
 		}
 	},
