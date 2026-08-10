@@ -7,12 +7,13 @@ import {
   KeyRound,
   Link,
   Loader2,
+  Plus,
   RefreshCw,
   ShieldCheck,
   Trash2,
   Unlink,
 } from "lucide-react";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import {
   AlertDialog,
@@ -25,6 +26,16 @@ import {
 } from "@/components/ui/alert-dialog";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import {
+  Dialog,
+  DialogClose,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogPanel,
+  DialogPopup,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { Field, FieldDescription, FieldLabel } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import {
@@ -34,6 +45,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { Tabs, TabsList, TabsPanel, TabsTab } from "@/components/ui/tabs";
 import {
   attachGitLabRepository,
   beginGitLabOAuthConnection,
@@ -55,6 +67,7 @@ type PendingRemoval =
   | null;
 
 type SelectOption = { label: string; value: string };
+type ConnectionAuthMethod = "oauth" | "token";
 
 export function GitLabIntegrationSettings({
   projectId,
@@ -69,6 +82,9 @@ export function GitLabIntegrationSettings({
   const [oauthName, setOauthName] = useState("");
   const [publicUrl, setPublicUrl] = useState("");
   const [accessToken, setAccessToken] = useState("");
+  const [connectionDialogOpen, setConnectionDialogOpen] = useState(false);
+  const [connectionAuthMethod, setConnectionAuthMethod] =
+    useState<ConnectionAuthMethod>("oauth");
   const [selectedConnectionId, setSelectedConnectionId] = useState("");
   const [selectedProjectId, setSelectedProjectId] = useState("");
   const [rotationTokens, setRotationTokens] = useState<Record<string, string>>(
@@ -102,6 +118,9 @@ export function GitLabIntegrationSettings({
 
   const connections = connectionsQuery.data?.connections ?? [];
   const oauthAvailability = connectionsQuery.data?.oauth;
+  const oauthEnabled = Boolean(
+    oauthAvailability?.enabled && oauthAvailability.publicUrl,
+  );
   const repositories = repositoriesQuery.data?.repositories ?? [];
   const attachedProviderIds = useMemo(
     () =>
@@ -151,6 +170,32 @@ export function GitLabIntegrationSettings({
     setSelectedProjectId("");
   }, [connections, selectedConnectionId]);
 
+  useEffect(() => {
+    if (!connectionDialogOpen) {
+      setConnectionAuthMethod(oauthEnabled ? "oauth" : "token");
+    }
+  }, [connectionDialogOpen, oauthEnabled]);
+
+  const resetConnectionForm = useCallback(() => {
+    setName("");
+    setOauthName("");
+    setPublicUrl("");
+    setAccessToken("");
+    setConnectionAuthMethod(oauthEnabled ? "oauth" : "token");
+  }, [oauthEnabled]);
+
+  const handleConnectionDialogOpenChange = (open: boolean) => {
+    setConnectionDialogOpen(open);
+    if (!open) {
+      resetConnectionForm();
+    }
+  };
+
+  const openConnectionDialog = () => {
+    resetConnectionForm();
+    setConnectionDialogOpen(true);
+  };
+
   const refreshConnections = () =>
     queryClient.invalidateQueries({ queryKey: ["gitlab-connections"] });
   const refreshRepositories = () =>
@@ -174,7 +219,8 @@ export function GitLabIntegrationSettings({
       oauthPopupRef.current = null;
       setOauthPendingId(null);
       if (event.data.status === "success") {
-        setOauthName("");
+        setConnectionDialogOpen(false);
+        resetConnectionForm();
         void queryClient.invalidateQueries({
           queryKey: ["gitlab-connections"],
         });
@@ -185,7 +231,7 @@ export function GitLabIntegrationSettings({
     };
     window.addEventListener("message", handleMessage);
     return () => window.removeEventListener("message", handleMessage);
-  }, [queryClient, t]);
+  }, [queryClient, resetConnectionForm, t]);
 
   useEffect(() => {
     if (!oauthPendingId) return;
@@ -235,8 +281,8 @@ export function GitLabIntegrationSettings({
   const createConnection = useMutation({
     mutationFn: createGitLabTokenConnection,
     onSuccess: async () => {
-      setName("");
-      setAccessToken("");
+      setConnectionDialogOpen(false);
+      resetConnectionForm();
       await refreshConnections();
       toast.success(t("settings:gitlabIntegration.toast.connectionCreated"));
     },
@@ -280,8 +326,7 @@ export function GitLabIntegrationSettings({
     onError: (error) => toast.error(error.message),
   });
 
-  const handleCreateConnection = (event: React.FormEvent) => {
-    event.preventDefault();
+  const handleCreateConnection = () => {
     if (!workspaceId || !name.trim() || !publicUrl.trim() || !accessToken)
       return;
     createConnection.mutate({
@@ -290,6 +335,15 @@ export function GitLabIntegrationSettings({
       publicUrl: publicUrl.trim(),
       accessToken,
     });
+  };
+
+  const handleConnectionSubmit = (event: React.FormEvent) => {
+    event.preventDefault();
+    if (connectionAuthMethod === "oauth" && oauthEnabled) {
+      void startOAuth();
+      return;
+    }
+    handleCreateConnection();
   };
 
   const handleAttach = () => {
@@ -349,6 +403,77 @@ export function GitLabIntegrationSettings({
     setPendingRemoval(null);
   };
 
+  const activeConnectionAuthMethod = oauthEnabled
+    ? connectionAuthMethod
+    : "token";
+  const oauthConnectionFields = (
+    <Field>
+      <FieldLabel htmlFor="gitlab-oauth-connection-name">
+        {t("settings:gitlabIntegration.oauthConnectionName")}
+      </FieldLabel>
+      <Input
+        id="gitlab-oauth-connection-name"
+        onChange={(event) => setOauthName(event.target.value)}
+        placeholder={t("settings:gitlabIntegration.connectionNamePlaceholder")}
+        type="text"
+        value={oauthName}
+      />
+      <FieldDescription>
+        {t("settings:gitlabIntegration.oauthHint", {
+          url: oauthAvailability?.publicUrl,
+        })}
+      </FieldDescription>
+    </Field>
+  );
+  const tokenConnectionFields = (
+    <div className="flex flex-col gap-4">
+      <div className="grid gap-4 sm:grid-cols-2">
+        <Field>
+          <FieldLabel htmlFor="gitlab-connection-name">
+            {t("settings:gitlabIntegration.connectionName")}
+          </FieldLabel>
+          <Input
+            id="gitlab-connection-name"
+            onChange={(event) => setName(event.target.value)}
+            placeholder={t(
+              "settings:gitlabIntegration.connectionNamePlaceholder",
+            )}
+            type="text"
+            value={name}
+          />
+        </Field>
+        <Field>
+          <FieldLabel htmlFor="gitlab-url">
+            {t("settings:gitlabIntegration.url")}
+          </FieldLabel>
+          <Input
+            id="gitlab-url"
+            onChange={(event) => setPublicUrl(event.target.value)}
+            placeholder="https://gitlab.example.com"
+            type="url"
+            value={publicUrl}
+          />
+        </Field>
+      </div>
+      <Field>
+        <FieldLabel htmlFor="gitlab-token">
+          {t("settings:gitlabIntegration.token")}
+        </FieldLabel>
+        <Input
+          autoComplete="new-password"
+          id="gitlab-token"
+          onChange={(event) => setAccessToken(event.target.value)}
+          placeholder={t("settings:gitlabIntegration.tokenPlaceholder")}
+          type="password"
+          value={accessToken}
+        />
+        <FieldDescription>
+          {t("settings:gitlabIntegration.tokenHint")}
+        </FieldDescription>
+      </Field>
+    </div>
+  );
+
   if (
     !workspaceId ||
     connectionsQuery.isLoading ||
@@ -365,13 +490,25 @@ export function GitLabIntegrationSettings({
   return (
     <div className="flex flex-col gap-4">
       <section className="flex flex-col gap-4 rounded-md border border-border bg-sidebar p-4">
-        <div className="flex flex-col gap-0.5">
-          <h3 className="font-medium text-sm">
-            {t("settings:gitlabIntegration.connectionsTitle")}
-          </h3>
-          <p className="text-muted-foreground text-xs">
-            {t("settings:gitlabIntegration.connectionsHint")}
-          </p>
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+          <div className="flex flex-col gap-0.5">
+            <h3 className="font-medium text-sm">
+              {t("settings:gitlabIntegration.connectionsTitle")}
+            </h3>
+            <p className="text-muted-foreground text-xs">
+              {t("settings:gitlabIntegration.connectionsHint")}
+            </p>
+          </div>
+          <Button
+            className="shrink-0 self-start"
+            onClick={openConnectionDialog}
+            size="sm"
+            type="button"
+            variant="outline"
+          >
+            <Plus aria-hidden="true" className="size-3.5" />
+            {t("settings:gitlabIntegration.addConnection")}
+          </Button>
         </div>
 
         {connections.length > 0 && (
@@ -509,104 +646,6 @@ export function GitLabIntegrationSettings({
             ))}
           </div>
         )}
-
-        {oauthAvailability?.enabled && oauthAvailability.publicUrl && (
-          <form
-            className="flex flex-col gap-3 rounded-md border border-border bg-background p-3"
-            onSubmit={(event) => {
-              event.preventDefault();
-              void startOAuth();
-            }}
-          >
-            <Field>
-              <FieldLabel htmlFor="gitlab-oauth-connection-name">
-                {t("settings:gitlabIntegration.oauthConnectionName")}
-              </FieldLabel>
-              <Input
-                id="gitlab-oauth-connection-name"
-                onChange={(event) => setOauthName(event.target.value)}
-                placeholder={t(
-                  "settings:gitlabIntegration.connectionNamePlaceholder",
-                )}
-                value={oauthName}
-              />
-              <FieldDescription>
-                {t("settings:gitlabIntegration.oauthHint", {
-                  url: oauthAvailability.publicUrl,
-                })}
-              </FieldDescription>
-            </Field>
-            <div className="flex justify-end">
-              <Button
-                disabled={!oauthName.trim() || oauthPendingId !== null}
-                loading={oauthPendingId === "new"}
-                type="submit"
-              >
-                <ShieldCheck aria-hidden="true" className="size-4" />
-                {t("settings:gitlabIntegration.connectOAuth")}
-              </Button>
-            </div>
-          </form>
-        )}
-
-        <form
-          className="flex flex-col gap-3 rounded-md border border-border bg-background p-3"
-          onSubmit={handleCreateConnection}
-        >
-          <div className="grid gap-3 sm:grid-cols-2">
-            <Field>
-              <FieldLabel htmlFor="gitlab-connection-name">
-                {t("settings:gitlabIntegration.connectionName")}
-              </FieldLabel>
-              <Input
-                id="gitlab-connection-name"
-                onChange={(event) => setName(event.target.value)}
-                placeholder={t(
-                  "settings:gitlabIntegration.connectionNamePlaceholder",
-                )}
-                value={name}
-              />
-            </Field>
-            <Field>
-              <FieldLabel htmlFor="gitlab-url">
-                {t("settings:gitlabIntegration.url")}
-              </FieldLabel>
-              <Input
-                id="gitlab-url"
-                onChange={(event) => setPublicUrl(event.target.value)}
-                placeholder="https://gitlab.example.com"
-                type="url"
-                value={publicUrl}
-              />
-            </Field>
-          </div>
-          <Field>
-            <FieldLabel htmlFor="gitlab-token">
-              {t("settings:gitlabIntegration.token")}
-            </FieldLabel>
-            <Input
-              autoComplete="new-password"
-              id="gitlab-token"
-              onChange={(event) => setAccessToken(event.target.value)}
-              placeholder={t("settings:gitlabIntegration.tokenPlaceholder")}
-              type="password"
-              value={accessToken}
-            />
-            <FieldDescription>
-              {t("settings:gitlabIntegration.tokenHint")}
-            </FieldDescription>
-          </Field>
-          <div className="flex justify-end">
-            <Button
-              disabled={!name.trim() || !publicUrl.trim() || !accessToken}
-              loading={createConnection.isPending}
-              type="submit"
-            >
-              <KeyRound aria-hidden="true" className="size-4" />
-              {t("settings:gitlabIntegration.addConnection")}
-            </Button>
-          </div>
-        </form>
       </section>
 
       <section className="flex flex-col gap-4 rounded-md border border-border bg-sidebar p-4">
@@ -762,6 +801,77 @@ export function GitLabIntegrationSettings({
           </div>
         )}
       </section>
+
+      <Dialog
+        onOpenChange={handleConnectionDialogOpenChange}
+        open={connectionDialogOpen}
+      >
+        <DialogPopup className="max-w-xl">
+          <form className="contents" onSubmit={handleConnectionSubmit}>
+            <DialogHeader>
+              <DialogTitle>
+                {t("settings:gitlabIntegration.addConnection")}
+              </DialogTitle>
+              <DialogDescription>
+                {t("settings:gitlabIntegration.connectionsHint")}
+              </DialogDescription>
+            </DialogHeader>
+            <DialogPanel>
+              {oauthEnabled ? (
+                <Tabs
+                  className="gap-4"
+                  onValueChange={(value) =>
+                    setConnectionAuthMethod(value as ConnectionAuthMethod)
+                  }
+                  value={activeConnectionAuthMethod}
+                >
+                  <TabsList className="w-full">
+                    <TabsTab className="flex-1" value="oauth">
+                      <ShieldCheck aria-hidden="true" />
+                      {t("settings:gitlabIntegration.connectOAuth")}
+                    </TabsTab>
+                    <TabsTab className="flex-1" value="token">
+                      <KeyRound aria-hidden="true" />
+                      {t("settings:gitlabIntegration.token")}
+                    </TabsTab>
+                  </TabsList>
+                  <TabsPanel value="oauth">{oauthConnectionFields}</TabsPanel>
+                  <TabsPanel value="token">{tokenConnectionFields}</TabsPanel>
+                </Tabs>
+              ) : (
+                tokenConnectionFields
+              )}
+            </DialogPanel>
+            <DialogFooter>
+              <DialogClose render={<Button type="button" variant="outline" />}>
+                {t("common:actions.cancel")}
+              </DialogClose>
+              <Button
+                disabled={
+                  activeConnectionAuthMethod === "oauth"
+                    ? !oauthName.trim() || oauthPendingId !== null
+                    : !name.trim() || !publicUrl.trim() || !accessToken
+                }
+                loading={
+                  activeConnectionAuthMethod === "oauth"
+                    ? oauthPendingId === "new"
+                    : createConnection.isPending
+                }
+                type="submit"
+              >
+                {activeConnectionAuthMethod === "oauth" ? (
+                  <ShieldCheck aria-hidden="true" className="size-4" />
+                ) : (
+                  <KeyRound aria-hidden="true" className="size-4" />
+                )}
+                {activeConnectionAuthMethod === "oauth"
+                  ? t("settings:gitlabIntegration.connectOAuth")
+                  : t("settings:gitlabIntegration.addConnection")}
+              </Button>
+            </DialogFooter>
+          </form>
+        </DialogPopup>
+      </Dialog>
 
       <AlertDialog
         onOpenChange={(open) => {
