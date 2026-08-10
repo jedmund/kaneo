@@ -1,0 +1,119 @@
+workflow:
+  rules:
+    - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
+    - if: "$CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH"
+    - if: "$CI_COMMIT_TAG"
+
+stages:
+  - validate
+  - test
+  - build
+
+default:
+  interruptible: true
+
+.node-job:
+  image: node:20.20.2-alpine
+  cache:
+    key:
+      files:
+        - pnpm-lock.yaml
+    paths:
+      - .pnpm-store/
+  before_script:
+    - corepack enable
+    - corepack prepare pnpm@10.32.1 --activate
+    - pnpm config set store-dir .pnpm-store
+    - pnpm install --frozen-lockfile
+
+lint:
+  extends: .node-job
+  stage: validate
+  script:
+    - pnpm exec biome ci .
+
+typecheck:
+  extends: .node-job
+  stage: validate
+  script:
+    - pnpm typecheck
+
+# Keep the inherited locale drift visible without blocking this fork's pipelines.
+# Remove allow_failure after the upstream locale catalogs pass i18n:check.
+i18n:
+  extends: .node-job
+  stage: validate
+  allow_failure: true
+  script:
+    - pnpm i18n:check
+
+unit:
+  extends: .node-job
+  stage: test
+  script:
+    - pnpm test
+
+integration:
+  extends: .node-job
+  stage: test
+  services:
+    - name: postgres:16-alpine
+      alias: postgres
+  variables:
+    NODE_ENV: test
+    POSTGRES_DB: kaneo_test
+    POSTGRES_USER: postgres
+    POSTGRES_PASSWORD: postgres
+    DATABASE_URL: postgresql://postgres:postgres@postgres:5432/kaneo_test
+    AUTH_SECRET: test-secret-with-at-least-32-characters
+    SCM_SECRET_ENCRYPTION_KEY: ci-only-scm-secret-with-at-least-32-characters
+    KANEO_API_URL: http://localhost:1337
+    KANEO_CLIENT_URL: http://localhost:5173
+    DISABLE_GUEST_ACCESS: "false"
+  script:
+    - pnpm test:integration
+
+build:
+  extends: .node-job
+  stage: build
+  script:
+    - pnpm build
+
+container:
+  stage: build
+  image:
+    name: moby/buildkit:v0.31.2-rootless
+    entrypoint: [""]
+  variables:
+    BUILDKITD_FLAGS: --oci-worker-no-process-sandbox
+  before_script:
+    - mkdir -p "$HOME/.docker"
+    - AUTH="$(printf '%s' "${CI_REGISTRY_USER}:${CI_REGISTRY_PASSWORD}" | base64 | tr -d '\n')"
+    - printf '{"auths":{"%s":{"auth":"%s"}}}\n' "$CI_REGISTRY" "$AUTH" > "$HOME/.docker/config.json"
+    - |
+      if [ -n "${REGISTRY_CA_CERT:-}" ]; then
+        mkdir -p "$HOME/.config/buildkit" "$HOME/.certs"
+        if [ -f "$REGISTRY_CA_CERT" ]; then
+          cp "$REGISTRY_CA_CERT" "$HOME/.certs/registry-ca.crt"
+        else
+          printf '%s\n' "$REGISTRY_CA_CERT" > "$HOME/.certs/registry-ca.crt"
+        fi
+        printf '[registry."%s"]\n  ca=["%s"]\n' \
+          "$CI_REGISTRY" "$HOME/.certs/registry-ca.crt" \
+          > "$HOME/.config/buildkit/buildkitd.toml"
+        export BUILDKITD_FLAGS="${BUILDKITD_FLAGS} --config=${HOME}/.config/buildkit/buildkitd.toml"
+      fi
+  script:
+    - |
+      if [ "$CI_COMMIT_BRANCH" = "$CI_DEFAULT_BRANCH" ] || [ -n "$CI_COMMIT_TAG" ]; then
+        output="type=image,name=${CI_REGISTRY_IMAGE}:${CI_COMMIT_SHA},push=true"
+      else
+        output="type=cacheonly"
+      fi
+
+      buildctl-daemonless.sh build \
+        --frontend dockerfile.v0 \
+        --local context=. \
+        --local dockerfile=. \
+        --opt filename=Dockerfile.kaneo \
+        --output "$output"
