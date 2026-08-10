@@ -423,6 +423,17 @@ export function createGitLabClient(options: GitLabRequestOptions) {
       });
     },
 
+    async updateLabel(
+      projectId: string | number,
+      currentName: string,
+      input: { new_name?: string; color?: string; description?: string },
+    ) {
+      return request<GitLabLabel>(`${projectPath(projectId)}/labels`, {
+        method: "PUT",
+        body: JSON.stringify({ name: currentName, ...input }),
+      });
+    },
+
     async listMergeRequests(projectId: string | number, state = "opened") {
       return requestAll<GitLabMergeRequest>(
         `${projectPath(projectId)}/merge_requests`,
