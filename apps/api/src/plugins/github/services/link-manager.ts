@@ -5,6 +5,7 @@ import { externalLinkTable } from "../../../database/schema";
 export type CreateExternalLinkParams = {
   taskId: string;
   integrationId: string;
+  integrationRepositoryId?: string | null;
   resourceType: "issue" | "pull_request" | "branch";
   externalId: string;
   url: string;
@@ -26,6 +27,7 @@ export async function createExternalLink(
     .values({
       taskId: params.taskId,
       integrationId: params.integrationId,
+      integrationRepositoryId: params.integrationRepositoryId ?? null,
       resourceType: params.resourceType,
       externalId: params.externalId,
       url: params.url,
@@ -46,13 +48,22 @@ export async function findExternalLink(
   integrationId: string,
   resourceType: string,
   externalId: string,
+  integrationRepositoryId?: string,
 ) {
+  const predicates = [
+    eq(externalLinkTable.integrationId, integrationId),
+    eq(externalLinkTable.resourceType, resourceType),
+    eq(externalLinkTable.externalId, externalId),
+  ];
+
+  if (integrationRepositoryId) {
+    predicates.push(
+      eq(externalLinkTable.integrationRepositoryId, integrationRepositoryId),
+    );
+  }
+
   return db.query.externalLinkTable.findFirst({
-    where: and(
-      eq(externalLinkTable.integrationId, integrationId),
-      eq(externalLinkTable.resourceType, resourceType),
-      eq(externalLinkTable.externalId, externalId),
-    ),
+    where: and(...predicates),
   });
 }
 
@@ -60,13 +71,22 @@ export async function findExternalLinkByTaskAndType(
   taskId: string,
   integrationId: string,
   resourceType: string,
+  integrationRepositoryId?: string,
 ) {
+  const predicates = [
+    eq(externalLinkTable.taskId, taskId),
+    eq(externalLinkTable.integrationId, integrationId),
+    eq(externalLinkTable.resourceType, resourceType),
+  ];
+
+  if (integrationRepositoryId) {
+    predicates.push(
+      eq(externalLinkTable.integrationRepositoryId, integrationRepositoryId),
+    );
+  }
+
   return db.query.externalLinkTable.findFirst({
-    where: and(
-      eq(externalLinkTable.taskId, taskId),
-      eq(externalLinkTable.integrationId, integrationId),
-      eq(externalLinkTable.resourceType, resourceType),
-    ),
+    where: and(...predicates),
   });
 }
 
@@ -112,6 +132,7 @@ export async function createOrUpdateExternalLink(
     params.integrationId,
     params.resourceType,
     params.externalId,
+    params.integrationRepositoryId ?? undefined,
   );
 
   if (existing) {

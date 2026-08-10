@@ -48,6 +48,7 @@ import { migrateGitHubIntegration } from "./plugins/github/migration";
 import project from "./project";
 import { getPublicProject } from "./project/controllers/get-public-project";
 import { initializeScheduler, shutdownScheduler } from "./scheduler";
+import { migrateLegacyScmRepositories } from "./scm/migrate-legacy-repositories";
 import search from "./search";
 import slackIntegration from "./slack-integration";
 import { getPrivateObject } from "./storage/s3";
@@ -786,6 +787,7 @@ export async function runStartupTasks() {
 
   await migrateNotificationPreferencesSchema();
   await migrateGitHubIntegration();
+  await migrateLegacyScmRepositories();
   await migrateColumns();
   await seedDefaultWorkspaceRoles();
 
