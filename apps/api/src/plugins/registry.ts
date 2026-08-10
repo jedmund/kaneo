@@ -468,7 +468,9 @@ export async function processScmSyncJob(jobId: string): Promise<boolean> {
       and(
         eq(scmSyncJobTable.id, jobId),
         inArray(scmSyncJobTable.status, ["pending", "failed"]),
-        lte(scmSyncJobTable.nextAttemptAt, now),
+        // Use the database clock so a defaultNow() value with microsecond
+        // precision cannot compare later than JavaScript's millisecond clock.
+        lte(scmSyncJobTable.nextAttemptAt, sql`CURRENT_TIMESTAMP`),
       ),
     )
     .returning();
