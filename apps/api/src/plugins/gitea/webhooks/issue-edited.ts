@@ -57,6 +57,7 @@ export async function handleGiteaIssueEdited(
       integration.id,
       "issue",
       issue.number.toString(),
+      integration.repository.id,
     );
 
     if (!externalLink) {

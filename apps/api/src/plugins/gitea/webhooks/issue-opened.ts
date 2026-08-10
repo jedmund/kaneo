@@ -82,6 +82,7 @@ export async function handleGiteaIssueOpened(
       integration.id,
       "issue",
       issue.number.toString(),
+      integration.repository.id,
     );
 
     if (existingLink) {
@@ -131,6 +132,7 @@ export async function handleGiteaIssueOpened(
     await createExternalLink({
       taskId: createdTask.id,
       integrationId: integration.id,
+      integrationRepositoryId: integration.repository.id,
       resourceType: "issue",
       externalId: issue.number.toString(),
       url: issue.html_url,

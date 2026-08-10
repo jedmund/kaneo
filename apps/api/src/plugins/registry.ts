@@ -382,6 +382,16 @@ async function createContext(integration: {
       : decryptScmCredential(repository.connection.credentialCiphertext)
     : undefined;
 
+  if (
+    repository?.provider === "gitea" &&
+    connectionCredential?.type === "token"
+  ) {
+    Object.assign(config, {
+      baseUrl: repository.connection?.internalUrl ?? repository.remoteOrigin,
+      accessToken: connectionCredential.accessToken,
+    });
+  }
+
   return {
     integrationId: integration.id,
     integrationRepositoryId: repository?.id,

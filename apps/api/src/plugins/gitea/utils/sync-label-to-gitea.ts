@@ -1,6 +1,7 @@
 import { eq } from "drizzle-orm";
 import db from "../../../database";
 import { externalLinkTable } from "../../../database/schema";
+import { decryptScmCredential } from "../../../scm/secrets";
 import type { GiteaConfig } from "../config";
 import { createGiteaClient } from "./gitea-api";
 
@@ -49,6 +50,7 @@ async function getGiteaIssueContext(taskId: string) {
     where: eq(externalLinkTable.taskId, taskId),
     with: {
       integration: true,
+      integrationRepository: { with: { connection: true } },
     },
   });
 
@@ -71,6 +73,23 @@ async function getGiteaIssueContext(taskId: string) {
     config = JSON.parse(integration.config) as GiteaConfig;
   } catch {
     return null;
+  }
+
+  const repository = externalLink.integrationRepository;
+  if (repository) {
+    const path = repository.fullPath.split("/");
+    config.repositoryName = path.pop() ?? config.repositoryName;
+    config.repositoryOwner = path.join("/");
+    config.baseUrl =
+      repository.connection?.internalUrl ?? repository.remoteOrigin;
+    if (repository.connection) {
+      const credential = decryptScmCredential(
+        repository.connection.credentialCiphertext,
+      );
+      if (credential.type === "token") {
+        config.accessToken = credential.accessToken;
+      }
+    }
   }
 
   if (!config.accessToken || !config.baseUrl) {

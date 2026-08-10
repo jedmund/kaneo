@@ -56,6 +56,10 @@ export async function handleGiteaIssueClosed(
     const externalLink = await db.query.externalLinkTable.findFirst({
       where: and(
         eq(externalLinkTable.integrationId, integration.id),
+        eq(
+          externalLinkTable.integrationRepositoryId,
+          integration.repository.id,
+        ),
         eq(externalLinkTable.resourceType, "issue"),
         eq(externalLinkTable.externalId, issue.number.toString()),
       ),

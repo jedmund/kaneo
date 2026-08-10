@@ -1,6 +1,10 @@
 import { eq } from "drizzle-orm";
 import db from "../../database";
-import { integrationTable } from "../../database/schema";
+import {
+  integrationRepositoryTable,
+  integrationTable,
+} from "../../database/schema";
+import { decryptScmSecret } from "../../scm/secrets";
 import type { GiteaConfig } from "./config";
 import { verifyGiteaSignature } from "./utils/verify-signature";
 import { handleGiteaIssueClosed } from "./webhooks/issue-closed";
@@ -72,16 +76,25 @@ function isLabelPayload(
 }
 
 export async function handleGiteaWebhookRequest(
-  integrationId: string,
+  repositoryOrIntegrationId: string,
   rawBody: string,
   signatureHeader: string | undefined,
   eventHeader: string | undefined,
 ): Promise<{ success: boolean; error?: string }> {
-  const integration = await db.query.integrationTable.findFirst({
-    where: eq(integrationTable.id, integrationId),
+  const repository = await db.query.integrationRepositoryTable.findFirst({
+    where: eq(integrationRepositoryTable.id, repositoryOrIntegrationId),
+    with: { integration: true },
   });
+  const integration =
+    repository?.integration ??
+    (await db.query.integrationTable.findFirst({
+      where: eq(integrationTable.id, repositoryOrIntegrationId),
+    }));
 
-  if (!integration || integration.type !== "gitea") {
+  if (
+    integration?.type !== "gitea" ||
+    (repository && (repository.provider !== "gitea" || !repository.isActive))
+  ) {
     return { success: false, error: "Gitea integration not found" };
   }
 
@@ -92,7 +105,9 @@ export async function handleGiteaWebhookRequest(
     return { success: false, error: "Invalid integration config" };
   }
 
-  const secret = config.webhookSecret;
+  const secret = repository?.webhookSecretCiphertext
+    ? decryptScmSecret(repository.webhookSecretCiphertext)
+    : config.webhookSecret;
   if (!secret) {
     return { success: false, error: "Webhook secret not configured" };
   }
@@ -115,7 +130,7 @@ export async function handleGiteaWebhookRequest(
   }
 
   try {
-    await dispatchGiteaEvent(event, payload, integration.id);
+    await dispatchGiteaEvent(event, payload, repository?.id ?? integration.id);
     return { success: true };
   } catch (error) {
     console.error("[Gitea Webhook] Handler error:", error);

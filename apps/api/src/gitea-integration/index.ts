@@ -24,6 +24,10 @@ import getGiteaIntegration from "./controllers/get-gitea-integration";
 import { importGiteaIssues } from "./controllers/import-gitea-issues";
 import listGiteaRepositories from "./controllers/list-gitea-repositories";
 import verifyGiteaAccess from "./controllers/verify-gitea-access";
+import {
+  detachGiteaRepository,
+  getGiteaAccessTokenForProject,
+} from "./repositories";
 
 const giteaRepositorySchema = v.object({
   id: v.number(),
@@ -91,14 +95,20 @@ const giteaIntegration = new Hono<{
       v.object({
         projectId: v.pipe(v.string(), v.minLength(1)),
         baseUrl: v.pipe(v.string(), v.url()),
-        accessToken: v.pipe(v.string(), v.minLength(1)),
+        accessToken: v.optional(v.string()),
       }),
     ),
     workspaceAccess.fromProject("projectId"),
     requireWorkspacePermission({ workspace: ["manage_settings"] }),
     async (c) => {
-      const { baseUrl, accessToken } = c.req.valid("json");
-      const result = await listGiteaRepositories({ baseUrl, accessToken });
+      const { projectId, baseUrl, accessToken } = c.req.valid("json");
+      const resolvedToken =
+        accessToken?.trim() ||
+        (await getGiteaAccessTokenForProject(projectId, baseUrl));
+      const result = await listGiteaRepositories({
+        baseUrl,
+        accessToken: resolvedToken,
+      });
       return c.json(result);
     },
   )
@@ -211,6 +221,7 @@ const giteaIntegration = new Hono<{
         accessToken: body.accessToken,
         repositoryOwner: body.repositoryOwner,
         repositoryName: body.repositoryName,
+        ownerUserId: c.get("userId"),
       });
       const integration = await getGiteaIntegration(projectId, true);
       if (!integration) {
@@ -307,6 +318,33 @@ const giteaIntegration = new Hono<{
     },
   )
   .delete(
+    "/project/:projectId/repositories/:repositoryId",
+    describeRoute({
+      operationId: "detachGiteaRepository",
+      tags: ["Gitea"],
+      description: "Detach one Gitea repository from a project",
+      responses: {
+        200: {
+          description: "Repository detached",
+          content: {
+            "application/json": {
+              schema: resolver(v.object({ success: v.boolean() })),
+            },
+          },
+        },
+      },
+    }),
+    validator(
+      "param",
+      v.object({ projectId: v.string(), repositoryId: v.string() }),
+    ),
+    workspaceAccess.fromProject("projectId"),
+    requireWorkspacePermission({ workspace: ["manage_settings"] }),
+    async (c) => {
+      return c.json(await detachGiteaRepository(c.req.valid("param")));
+    },
+  )
+  .delete(
     "/project/:projectId",
     describeRoute({
       operationId: "deleteGiteaIntegration",
@@ -358,6 +396,7 @@ const giteaIntegration = new Hono<{
       "json",
       v.object({
         projectId: v.string(),
+        repositoryId: v.string(),
       }),
     ),
     async (c, next) => {
@@ -389,7 +428,8 @@ const giteaIntegration = new Hono<{
     requireWorkspacePermission({ task: ["create"] }),
     async (c) => {
       const { projectId } = c.req.valid("json");
-      const result = await importGiteaIssues(projectId);
+      const { repositoryId } = c.req.valid("json");
+      const result = await importGiteaIssues(projectId, repositoryId);
       return c.json(result);
     },
   );

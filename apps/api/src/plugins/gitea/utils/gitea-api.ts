@@ -150,6 +150,9 @@ export function createGiteaClient(
   config: Pick<GiteaConfig, "baseUrl" | "accessToken">,
 ) {
   const { baseUrl, accessToken } = config;
+  if (!accessToken) {
+    throw new Error("Gitea access token is not configured");
+  }
   const owner = (o: string, r: string) =>
     `/repos/${encodeURIComponent(o)}/${encodeURIComponent(r)}`;
 
@@ -158,16 +161,22 @@ export function createGiteaClient(
       repositoryOwner: string,
       repositoryName: string,
     ): Promise<{
+      id?: number;
       name: string;
+      full_name?: string;
       owner: { login?: string; username?: string };
       html_url: string;
+      default_branch?: string;
       private: boolean;
       permissions?: { admin?: boolean; push?: boolean; pull?: boolean };
     }> {
       const repo = await giteaFetch<{
+        id?: number;
         name: string;
+        full_name?: string;
         owner: { login?: string; username?: string };
         html_url: string;
+        default_branch?: string;
         private: boolean;
         permissions?: { admin?: boolean; push?: boolean; pull?: boolean };
       }>(baseUrl, accessToken, owner(repositoryOwner, repositoryName));
