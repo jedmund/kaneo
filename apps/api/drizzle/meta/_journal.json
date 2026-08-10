@@ -274,6 +274,13 @@
 			"when": 1786329067883,
 			"tag": "0038_elite_mentor",
 			"breakpoints": true
+		},
+		{
+			"idx": 39,
+			"version": "7",
+			"when": 1786331804972,
+			"tag": "0039_windy_wrecking_crew",
+			"breakpoints": true
 		}
 	]
 }

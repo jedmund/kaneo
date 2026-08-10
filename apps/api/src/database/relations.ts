@@ -16,6 +16,7 @@ import {
   projectTable,
   scmConnectionTable,
   scmSyncJobTable,
+  scmWebhookDeliveryTable,
   sessionTable,
   taskRelationTable,
   taskReminderSentTable,
@@ -375,6 +376,17 @@ export const integrationRepositoryTableRelations = relations(
     }),
     externalLinks: many(externalLinkTable),
     syncJobs: many(scmSyncJobTable),
+    webhookDeliveries: many(scmWebhookDeliveryTable),
+  }),
+);
+
+export const scmWebhookDeliveryTableRelations = relations(
+  scmWebhookDeliveryTable,
+  ({ one }) => ({
+    integrationRepository: one(integrationRepositoryTable, {
+      fields: [scmWebhookDeliveryTable.integrationRepositoryId],
+      references: [integrationRepositoryTable.id],
+    }),
   }),
 );
 
