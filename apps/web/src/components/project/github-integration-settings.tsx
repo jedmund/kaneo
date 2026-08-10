@@ -33,6 +33,7 @@ import type { VerifyGithubInstallationResponse } from "@/fetchers/github-integra
 import {
   useCreateGithubIntegration,
   useDeleteGithubIntegration,
+  useDetachGithubRepository,
   useVerifyGithubInstallation,
 } from "@/hooks/mutations/github-integration/use-create-github-integration";
 import useImportGithubIssues from "@/hooks/mutations/github-integration/use-import-github-issues";
@@ -78,6 +79,8 @@ export function GitHubIntegrationSettings({
     useCreateGithubIntegration();
   const { mutateAsync: deleteIntegration, isPending: isDeleting } =
     useDeleteGithubIntegration();
+  const { mutateAsync: detachRepository, isPending: isDetaching } =
+    useDetachGithubRepository();
   const { mutateAsync: verifyInstallation, isPending: isVerifying } =
     useVerifyGithubInstallation();
   const { mutateAsync: importIssues, isPending: isImporting } =
@@ -222,15 +225,28 @@ export function GitHubIntegrationSettings({
     }
   };
 
-  const handleImportIssues = async () => {
+  const handleImportIssues = async (repositoryId: string) => {
     try {
-      await importIssues({ projectId });
+      await importIssues({ projectId, repositoryId });
       toast.success(t("settings:githubIntegration.toast.issuesImported"));
     } catch (error) {
       toast.error(
         error instanceof Error
           ? error.message
           : t("settings:githubIntegration.toast.importError"),
+      );
+    }
+  };
+
+  const handleDetachRepository = async (repositoryId: string) => {
+    try {
+      await detachRepository({ projectId, repositoryId });
+      toast.success(t("settings:githubIntegration.toast.removed"));
+    } catch (error) {
+      toast.error(
+        error instanceof Error
+          ? error.message
+          : t("settings:githubIntegration.toast.removeError"),
       );
     }
   };
@@ -257,10 +273,7 @@ export function GitHubIntegrationSettings({
   }
 
   const isConnected = !!integration && integration.isActive;
-  const canImport =
-    isConnected &&
-    verificationResult?.isInstalled &&
-    verificationResult?.hasRequiredPermissions;
+  const repositories = integration?.repositories ?? [];
 
   return (
     <div className="space-y-4">
@@ -300,7 +313,7 @@ export function GitHubIntegrationSettings({
         {isConnected && (
           <>
             <Separator />
-            <div className="flex items-center justify-between">
+            <div className="space-y-3">
               <div className="space-y-0.5">
                 <p className="text-sm font-medium">
                   {t("settings:githubIntegration.repository")}
@@ -309,19 +322,51 @@ export function GitHubIntegrationSettings({
                   {t("settings:githubIntegration.repositoryHint")}
                 </p>
               </div>
-              <div className="flex items-center gap-2 text-sm">
-                <GithubIcon className="w-4 h-4" />
-                <span className="font-medium">
-                  {integration.repositoryOwner}/{integration.repositoryName}
-                </span>
-                <a
-                  href={`https://github.com/${integration.repositoryOwner}/${integration.repositoryName}`}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="text-primary hover:text-primary/80 transition-colors"
-                >
-                  <ExternalLink className="w-3 h-3" />
-                </a>
+              <div className="space-y-2">
+                {repositories.map((repository) => (
+                  <div
+                    key={repository.id}
+                    className="flex items-center justify-between gap-3 rounded-md border border-border bg-background p-3"
+                  >
+                    <div className="flex min-w-0 items-center gap-2 text-sm">
+                      <GithubIcon className="size-4 shrink-0" />
+                      <span className="truncate font-medium">
+                        {repository.fullPath}
+                      </span>
+                      <a
+                        href={repository.webUrl}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-primary transition-colors hover:text-primary/80"
+                      >
+                        <ExternalLink className="size-3" />
+                      </a>
+                    </div>
+                    <div className="flex shrink-0 items-center gap-2">
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="outline"
+                        className="gap-2"
+                        disabled={isImporting || isDetaching}
+                        onClick={() => handleImportIssues(repository.id)}
+                      >
+                        <Import className="size-3" />
+                        {t("settings:githubIntegration.importIssues")}
+                      </Button>
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="ghost"
+                        disabled={isImporting || isDetaching}
+                        onClick={() => handleDetachRepository(repository.id)}
+                        aria-label={`${t("settings:githubIntegration.disconnect")} ${repository.fullPath}`}
+                      >
+                        <Unlink className="size-3" />
+                      </Button>
+                    </div>
+                  </div>
+                ))}
               </div>
             </div>
 
@@ -638,47 +683,6 @@ export function GitHubIntegrationSettings({
           </>
         )}
       </div>
-
-      {isConnected && (
-        <div className="space-y-4 border border-border rounded-md p-4 bg-sidebar">
-          <div className="flex items-center justify-between">
-            <div className="space-y-0.5">
-              <p className="text-sm font-medium">
-                {t("settings:githubIntegration.importSectionTitle")}
-              </p>
-              <p className="text-xs text-muted-foreground">
-                {t("settings:githubIntegration.importSectionHint")}
-              </p>
-            </div>
-            <div className="flex items-center gap-2">
-              <Button
-                onClick={handleImportIssues}
-                disabled={isImporting || !canImport}
-                className="gap-2"
-                size="sm"
-                variant="outline"
-              >
-                {isImporting ? (
-                  <RefreshCw className="size-3 animate-spin" />
-                ) : (
-                  <Import className="size-3" />
-                )}
-                {isImporting
-                  ? t("settings:githubIntegration.importing")
-                  : t("settings:githubIntegration.importIssues")}
-              </Button>
-            </div>
-          </div>
-          {!canImport && (
-            <>
-              <Separator />
-              <p className="text-xs text-muted-foreground">
-                {t("settings:githubIntegration.importDisabledHint")}
-              </p>
-            </>
-          )}
-        </div>
-      )}
 
       <RepositoryBrowserModal
         open={showRepositoryBrowser}
