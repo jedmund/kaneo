@@ -24,6 +24,7 @@ import type {
   GitLabLabel,
   GitLabMergeRequest,
 } from "../plugins/gitlab/client";
+import { GitLabApiError } from "../plugins/gitlab/client";
 import { isKaneoGeneratedGitLabNote } from "../plugins/gitlab/notes";
 import {
   extractGitLabTaskNumber,
@@ -396,11 +397,25 @@ export async function importGitLabIssues(
     binding.connection.id,
   );
   const client = await getGitLabClientForConnection(connection);
-  const [availableLabels, issues, mergeRequests] = await Promise.all([
-    client.listLabels(binding.providerRepositoryId),
-    client.listIssues(binding.providerRepositoryId, "opened"),
-    client.listMergeRequests(binding.providerRepositoryId, "opened"),
-  ]);
+  let availableLabels: GitLabLabel[];
+  let issues: GitLabIssue[];
+  let mergeRequests: GitLabMergeRequest[];
+  try {
+    [availableLabels, issues, mergeRequests] = await Promise.all([
+      client.listLabels(binding.providerRepositoryId),
+      client.listIssues(binding.providerRepositoryId, "opened"),
+      client.listMergeRequests(binding.providerRepositoryId, "opened"),
+    ]);
+  } catch (error) {
+    const detail =
+      error instanceof GitLabApiError
+        ? error.message
+        : "GitLab repository data could not be loaded";
+    throw new HTTPException(502, {
+      message: `GitLab import failed before processing issues: ${detail}`,
+      cause: error,
+    });
+  }
 
   let imported = 0;
   let updated = 0;
