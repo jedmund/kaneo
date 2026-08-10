@@ -8,11 +8,14 @@ import {
   commentTable,
   externalLinkTable,
   githubIntegrationTable,
+  integrationRepositoryTable,
   integrationTable,
   invitationTable,
   labelTable,
   notificationTable,
   projectTable,
+  scmConnectionTable,
+  scmSyncJobTable,
   sessionTable,
   taskRelationTable,
   taskReminderSentTable,
@@ -156,6 +159,7 @@ export const taskTableRelations = relations(taskTable, ({ one, many }) => ({
   sourceRelations: many(taskRelationTable, { relationName: "sourceTask" }),
   targetRelations: many(taskRelationTable, { relationName: "targetTask" }),
   remindersSent: many(taskReminderSentTable),
+  scmSyncJobs: many(scmSyncJobTable),
 }));
 
 export const timeEntryTableRelations = relations(timeEntryTable, ({ one }) => ({
@@ -339,6 +343,38 @@ export const integrationTableRelations = relations(
       references: [projectTable.id],
     }),
     externalLinks: many(externalLinkTable),
+    repositories: many(integrationRepositoryTable),
+  }),
+);
+
+export const scmConnectionTableRelations = relations(
+  scmConnectionTable,
+  ({ one, many }) => ({
+    workspace: one(workspaceTable, {
+      fields: [scmConnectionTable.workspaceId],
+      references: [workspaceTable.id],
+    }),
+    owner: one(userTable, {
+      fields: [scmConnectionTable.ownerUserId],
+      references: [userTable.id],
+    }),
+    repositories: many(integrationRepositoryTable),
+  }),
+);
+
+export const integrationRepositoryTableRelations = relations(
+  integrationRepositoryTable,
+  ({ one, many }) => ({
+    integration: one(integrationTable, {
+      fields: [integrationRepositoryTable.integrationId],
+      references: [integrationTable.id],
+    }),
+    connection: one(scmConnectionTable, {
+      fields: [integrationRepositoryTable.connectionId],
+      references: [scmConnectionTable.id],
+    }),
+    externalLinks: many(externalLinkTable),
+    syncJobs: many(scmSyncJobTable),
   }),
 );
 
@@ -368,6 +404,24 @@ export const externalLinkTableRelations = relations(
     integration: one(integrationTable, {
       fields: [externalLinkTable.integrationId],
       references: [integrationTable.id],
+    }),
+    integrationRepository: one(integrationRepositoryTable, {
+      fields: [externalLinkTable.integrationRepositoryId],
+      references: [integrationRepositoryTable.id],
+    }),
+  }),
+);
+
+export const scmSyncJobTableRelations = relations(
+  scmSyncJobTable,
+  ({ one }) => ({
+    task: one(taskTable, {
+      fields: [scmSyncJobTable.taskId],
+      references: [taskTable.id],
+    }),
+    integrationRepository: one(integrationRepositoryTable, {
+      fields: [scmSyncJobTable.integrationRepositoryId],
+      references: [integrationRepositoryTable.id],
     }),
   }),
 );

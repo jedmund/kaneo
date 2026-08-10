@@ -812,6 +812,109 @@ export const integrationTable = pgTable(
   ],
 );
 
+/**
+ * A workspace-scoped credential and network configuration for an SCM host.
+ *
+ * Credentials are stored as an opaque encrypted payload. Provider plugins are
+ * responsible for decoding the payload through the shared secret service; the
+ * plaintext value must never be written to this table or integration.config.
+ */
+export const scmConnectionTable = pgTable(
+  "scm_connection",
+  {
+    id: text("id")
+      .$defaultFn(() => createId())
+      .primaryKey(),
+    workspaceId: text("workspace_id")
+      .notNull()
+      .references(() => workspaceTable.id, {
+        onDelete: "cascade",
+        onUpdate: "cascade",
+      }),
+    provider: text("provider").notNull(),
+    name: text("name").notNull(),
+    authType: text("auth_type").notNull(),
+    publicUrl: text("public_url").notNull(),
+    internalUrl: text("internal_url").notNull(),
+    credentialCiphertext: text("credential_ciphertext").notNull(),
+    ownerUserId: text("owner_user_id").references(() => userTable.id, {
+      onDelete: "set null",
+      onUpdate: "cascade",
+    }),
+    status: text("status").default("active").notNull(),
+    statusMessage: text("status_message"),
+    expiresAt: timestamp("expires_at", { mode: "date" }),
+    metadata: jsonb("metadata"),
+    createdAt: timestamp("created_at", { mode: "date" }).defaultNow().notNull(),
+    updatedAt: timestamp("updated_at", { mode: "date" })
+      .defaultNow()
+      .$onUpdate(() => new Date())
+      .notNull(),
+  },
+  (table) => [
+    index("scm_connection_workspaceId_idx").on(table.workspaceId),
+    index("scm_connection_provider_idx").on(table.provider),
+    index("scm_connection_ownerUserId_idx").on(table.ownerUserId),
+    unique("scm_connection_workspace_provider_name_unique").on(
+      table.workspaceId,
+      table.provider,
+      table.name,
+    ),
+  ],
+);
+
+/** A concrete remote repository attached to a provider integration anchor. */
+export const integrationRepositoryTable = pgTable(
+  "integration_repository",
+  {
+    id: text("id")
+      .$defaultFn(() => createId())
+      .primaryKey(),
+    integrationId: text("integration_id")
+      .notNull()
+      .references(() => integrationTable.id, {
+        onDelete: "cascade",
+        onUpdate: "cascade",
+      }),
+    connectionId: text("connection_id").references(
+      () => scmConnectionTable.id,
+      {
+        onDelete: "restrict",
+        onUpdate: "cascade",
+      },
+    ),
+    provider: text("provider").notNull(),
+    remoteOrigin: text("remote_origin").notNull(),
+    providerRepositoryId: text("provider_repository_id").notNull(),
+    fullPath: text("full_path").notNull(),
+    webUrl: text("web_url").notNull(),
+    defaultBranch: text("default_branch"),
+    webhookId: text("webhook_id"),
+    webhookSecretCiphertext: text("webhook_secret_ciphertext"),
+    metadata: jsonb("metadata"),
+    isActive: boolean("is_active").default(true).notNull(),
+    createdAt: timestamp("created_at", { mode: "date" }).defaultNow().notNull(),
+    updatedAt: timestamp("updated_at", { mode: "date" })
+      .defaultNow()
+      .$onUpdate(() => new Date())
+      .notNull(),
+  },
+  (table) => [
+    index("integration_repository_integrationId_idx").on(table.integrationId),
+    index("integration_repository_connectionId_idx").on(table.connectionId),
+    index("integration_repository_provider_idx").on(table.provider),
+    unique("integration_repository_remote_unique").on(
+      table.provider,
+      table.remoteOrigin,
+      table.providerRepositoryId,
+    ),
+    unique("integration_repository_integration_path_unique").on(
+      table.integrationId,
+      table.fullPath,
+    ),
+  ],
+);
+
 export const externalLinkTable = pgTable(
   "external_link",
   {
@@ -830,6 +933,13 @@ export const externalLinkTable = pgTable(
         onDelete: "cascade",
         onUpdate: "cascade",
       }),
+    integrationRepositoryId: text("integration_repository_id").references(
+      () => integrationRepositoryTable.id,
+      {
+        onDelete: "cascade",
+        onUpdate: "cascade",
+      },
+    ),
     resourceType: text("resource_type").notNull(),
     externalId: text("external_id").notNull(),
     url: text("url").notNull(),
@@ -844,8 +954,61 @@ export const externalLinkTable = pgTable(
   (table) => [
     index("external_link_taskId_idx").on(table.taskId),
     index("external_link_integrationId_idx").on(table.integrationId),
+    index("external_link_integrationRepositoryId_idx").on(
+      table.integrationRepositoryId,
+    ),
     index("external_link_externalId_idx").on(table.externalId),
     index("external_link_resourceType_idx").on(table.resourceType),
+    unique("external_link_repository_resource_external_unique").on(
+      table.integrationRepositoryId,
+      table.resourceType,
+      table.externalId,
+    ),
+  ],
+);
+
+/** Durable, targeted provider work created in the same transaction as a task. */
+export const scmSyncJobTable = pgTable(
+  "scm_sync_job",
+  {
+    id: text("id")
+      .$defaultFn(() => createId())
+      .primaryKey(),
+    taskId: text("task_id")
+      .notNull()
+      .references(() => taskTable.id, {
+        onDelete: "cascade",
+        onUpdate: "cascade",
+      }),
+    integrationRepositoryId: text("integration_repository_id")
+      .notNull()
+      .references(() => integrationRepositoryTable.id, {
+        onDelete: "cascade",
+        onUpdate: "cascade",
+      }),
+    operation: text("operation").notNull(),
+    dedupeKey: text("dedupe_key").notNull().unique(),
+    status: text("status").default("pending").notNull(),
+    attempts: integer("attempts").default(0).notNull(),
+    payload: jsonb("payload").notNull(),
+    lastError: text("last_error"),
+    nextAttemptAt: timestamp("next_attempt_at", { mode: "date" })
+      .defaultNow()
+      .notNull(),
+    completedAt: timestamp("completed_at", { mode: "date" }),
+    createdAt: timestamp("created_at", { mode: "date" }).defaultNow().notNull(),
+    updatedAt: timestamp("updated_at", { mode: "date" })
+      .defaultNow()
+      .$onUpdate(() => new Date())
+      .notNull(),
+  },
+  (table) => [
+    index("scm_sync_job_taskId_idx").on(table.taskId),
+    index("scm_sync_job_repositoryId_idx").on(table.integrationRepositoryId),
+    index("scm_sync_job_status_nextAttemptAt_idx").on(
+      table.status,
+      table.nextAttemptAt,
+    ),
   ],
 );
 

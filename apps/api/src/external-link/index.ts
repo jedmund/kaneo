@@ -10,6 +10,7 @@ const externalLinkSchema = v.object({
   id: v.string(),
   taskId: v.string(),
   integrationId: v.string(),
+  integrationRepositoryId: v.nullable(v.string()),
   resourceType: v.string(),
   externalId: v.string(),
   url: v.string(),
