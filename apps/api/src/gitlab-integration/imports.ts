@@ -44,7 +44,7 @@ export type GitLabImportResult = {
 };
 
 type ImportBinding = Awaited<ReturnType<typeof requireImportBinding>>;
-type GitLabClient = ReturnType<typeof getGitLabClientForConnection>;
+type GitLabClient = Awaited<ReturnType<typeof getGitLabClientForConnection>>;
 
 function normalizeLabelColor(color: string | undefined) {
   const normalized = color?.trim();
@@ -395,7 +395,7 @@ export async function importGitLabIssues(
     binding.integration.project.workspaceId,
     binding.connection.id,
   );
-  const client = getGitLabClientForConnection(connection);
+  const client = await getGitLabClientForConnection(connection);
   const [availableLabels, issues, mergeRequests] = await Promise.all([
     client.listLabels(binding.providerRepositoryId),
     client.listIssues(binding.providerRepositoryId, "opened"),

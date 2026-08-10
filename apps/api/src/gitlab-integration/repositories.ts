@@ -147,7 +147,7 @@ export async function attachGitLabRepository(input: {
     workspaceId,
     input.connectionId,
   );
-  const client = getGitLabClientForConnection(connection);
+  const client = await getGitLabClientForConnection(connection);
 
   let project: GitLabProject;
   try {
@@ -272,7 +272,9 @@ export async function detachGitLabRepository(input: {
 
   if (binding.repository.webhookId) {
     try {
-      await getGitLabClientForConnection(binding.connection).deleteProjectHook(
+      await (
+        await getGitLabClientForConnection(binding.connection)
+      ).deleteProjectHook(
         binding.repository.providerRepositoryId,
         binding.repository.webhookId,
       );

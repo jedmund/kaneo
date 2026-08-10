@@ -14,6 +14,12 @@ import {
 } from "./connections";
 import { importGitLabIssues } from "./imports";
 import {
+  beginGitLabOAuth,
+  completeGitLabOAuth,
+  getGitLabOAuthAvailability,
+  gitLabOAuthCallbackHtml,
+} from "./oauth";
+import {
   attachGitLabRepository,
   detachGitLabRepository,
   listProjectGitLabRepositories,
@@ -201,7 +207,13 @@ const gitlabIntegration = new Hono<typeof routeVariables>()
           content: {
             "application/json": {
               schema: resolver(
-                v.object({ connections: v.array(connectionSchema) }),
+                v.object({
+                  connections: v.array(connectionSchema),
+                  oauth: v.object({
+                    enabled: v.boolean(),
+                    publicUrl: v.nullable(v.string()),
+                  }),
+                }),
               ),
             },
           },
@@ -213,7 +225,10 @@ const gitlabIntegration = new Hono<typeof routeVariables>()
     requireWorkspacePermission({ workspace: ["manage_settings"] }),
     async (c) => {
       const workspaceId = c.get("workspaceId");
-      return c.json({ connections: await listGitLabConnections(workspaceId) });
+      return c.json({
+        connections: await listGitLabConnections(workspaceId),
+        oauth: getGitLabOAuthAvailability(),
+      });
     },
   )
   .post(
@@ -251,6 +266,43 @@ const gitlabIntegration = new Hono<typeof routeVariables>()
       });
       return c.json(connection, 201);
     },
+  )
+  .post(
+    "/workspace/:workspaceId/connections/oauth",
+    describeRoute({
+      operationId: "beginGitLabOAuthConnection",
+      tags: ["GitLab"],
+      description:
+        "Begin a workspace GitLab OAuth authorization with PKCE and one-time state",
+      responses: {
+        200: {
+          description: "GitLab authorization URL",
+          content: {
+            "application/json": {
+              schema: resolver(v.object({ authorizationUrl: v.string() })),
+            },
+          },
+        },
+      },
+    }),
+    validator("param", v.object({ workspaceId: v.string() })),
+    validator(
+      "json",
+      v.object({
+        name: v.pipe(v.string(), v.trim(), v.minLength(1), v.maxLength(100)),
+        connectionId: v.optional(v.string()),
+      }),
+    ),
+    workspaceAccess.fromParam("workspaceId"),
+    requireWorkspacePermission({ workspace: ["manage_settings"] }),
+    async (c) =>
+      c.json(
+        await beginGitLabOAuth({
+          workspaceId: c.get("workspaceId"),
+          userId: c.get("userId"),
+          ...c.req.valid("json"),
+        }),
+      ),
   )
   .put(
     "/workspace/:workspaceId/connections/:connectionId/token",
@@ -364,4 +416,24 @@ export async function handleGitLabWebhookRoute(c: Context) {
   return c.json({
     status: result.duplicate ? "duplicate" : "success",
   });
+}
+
+export async function handleGitLabOAuthCallbackRoute(c: Context) {
+  c.header("Cache-Control", "no-store");
+  c.header("Referrer-Policy", "no-referrer");
+  const code = c.req.query("code");
+  const state = c.req.query("state");
+  let status: "success" | "error" = "error";
+  if (code && state && !c.req.query("error")) {
+    try {
+      await completeGitLabOAuth({ code, state });
+      status = "success";
+    } catch {
+      status = "error";
+    }
+  }
+  return c.html(
+    gitLabOAuthCallbackHtml(status),
+    status === "success" ? 200 : 400,
+  );
 }

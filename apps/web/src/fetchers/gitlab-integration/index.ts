@@ -20,6 +20,7 @@ export async function listGitLabConnections(workspaceId: string) {
     ":workspaceId"
   ].connections.$get({ param: { workspaceId } });
   return responseJson<{
+    oauth: { enabled: boolean; publicUrl: string | null };
     connections: Array<{
       id: string;
       workspaceId: string;
@@ -59,6 +60,20 @@ export async function createGitLabTokenConnection(input: {
     },
   });
   return responseJson<GitLabConnection>(response);
+}
+
+export async function beginGitLabOAuthConnection(input: {
+  workspaceId: string;
+  name: string;
+  connectionId?: string;
+}) {
+  const response = await client["gitlab-integration"].workspace[
+    ":workspaceId"
+  ].connections.oauth.$post({
+    param: { workspaceId: input.workspaceId },
+    json: { name: input.name, connectionId: input.connectionId },
+  });
+  return responseJson<{ authorizationUrl: string }>(response);
 }
 
 export async function rotateGitLabTokenConnection(input: {

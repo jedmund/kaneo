@@ -6,6 +6,7 @@ import {
   scmSyncJobTable,
 } from "../database/schema";
 import { subscribeToEvent } from "../events";
+import { getValidGitLabCredential } from "../gitlab-integration/oauth";
 import { decryptScmCredential } from "../scm/secrets";
 import type {
   IntegrationPlugin,
@@ -319,7 +320,7 @@ async function getActiveIntegrations(projectId: string, taskId?: string) {
   });
 }
 
-function createContext(integration: {
+async function createContext(integration: {
   id: string;
   projectId: string;
   config: string;
@@ -342,7 +343,7 @@ function createContext(integration: {
       credentialCiphertext: string;
     } | null;
   };
-}): PluginContext {
+}): Promise<PluginContext> {
   const config = JSON.parse(integration.config) as Record<string, unknown>;
   const repository = integration.repository;
 
@@ -375,22 +376,26 @@ function createContext(integration: {
     });
   }
 
+  const connectionCredential = repository?.connection
+    ? repository.provider === "gitlab"
+      ? await getValidGitLabCredential(repository.connection)
+      : decryptScmCredential(repository.connection.credentialCiphertext)
+    : undefined;
+
   return {
     integrationId: integration.id,
     integrationRepositoryId: repository?.id,
     projectId: integration.projectId,
     config,
     repository,
-    ...(repository?.connection
+    ...(repository?.connection && connectionCredential
       ? {
           connection: {
             id: repository.connection.id,
             authType: repository.connection.authType,
             publicUrl: repository.connection.publicUrl,
             internalUrl: repository.connection.internalUrl,
-            credential: decryptScmCredential(
-              repository.connection.credentialCiphertext,
-            ),
+            credential: connectionCredential,
           },
         }
       : {}),
@@ -410,7 +415,7 @@ export async function broadcastTaskCreated(
     // integrations still receive Kaneo-only and imported task events.
     if (plugin.kind === "scm") continue;
 
-    const context = createContext(integration);
+    const context = await createContext(integration);
 
     try {
       await plugin.onTaskCreated(event, context);
@@ -545,7 +550,7 @@ export async function processScmSyncJob(jobId: string): Promise<boolean> {
       scmSyncJobId: job.id,
       scmSyncAttempt: job.attempts,
     };
-    const context = createContext({ ...integration, repository });
+    const context = await createContext({ ...integration, repository });
     let issueLink = await findTaskIssueLink(job.taskId, repository.id);
 
     if (!issueLink && job.attempts > 1) {
@@ -639,7 +644,7 @@ export async function broadcastTaskStatusChanged(
     const plugin = getPlugin(integration.type);
     if (!plugin?.onTaskStatusChanged) continue;
 
-    const context = createContext(integration);
+    const context = await createContext(integration);
 
     try {
       await plugin.onTaskStatusChanged(event, context);
@@ -664,7 +669,7 @@ export async function broadcastTaskPriorityChanged(
     const plugin = getPlugin(integration.type);
     if (!plugin?.onTaskPriorityChanged) continue;
 
-    const context = createContext(integration);
+    const context = await createContext(integration);
 
     try {
       await plugin.onTaskPriorityChanged(event, context);
@@ -689,7 +694,7 @@ export async function broadcastTaskTitleChanged(
     const plugin = getPlugin(integration.type);
     if (!plugin?.onTaskTitleChanged) continue;
 
-    const context = createContext(integration);
+    const context = await createContext(integration);
 
     try {
       await plugin.onTaskTitleChanged(event, context);
@@ -714,7 +719,7 @@ export async function broadcastTaskDescriptionChanged(
     const plugin = getPlugin(integration.type);
     if (!plugin?.onTaskDescriptionChanged) continue;
 
-    const context = createContext(integration);
+    const context = await createContext(integration);
 
     try {
       await plugin.onTaskDescriptionChanged(event, context);
@@ -739,7 +744,7 @@ export async function broadcastTaskCommentCreated(
     const plugin = getPlugin(integration.type);
     if (!plugin?.onTaskCommentCreated) continue;
 
-    const context = createContext(integration);
+    const context = await createContext(integration);
 
     try {
       await plugin.onTaskCommentCreated(event, context);
@@ -761,7 +766,7 @@ export async function broadcastTaskDeleted(
     const plugin = getPlugin(integration.type);
     if (!plugin?.onTaskDeleted) continue;
 
-    const context = createContext(integration);
+    const context = await createContext(integration);
 
     try {
       await plugin.onTaskDeleted(event, context);
@@ -781,7 +786,7 @@ export async function broadcastTaskMoved(event: TaskMovedEvent): Promise<void> {
     const plugin = getPlugin(integration.type);
     if (!plugin?.onTaskMoved) continue;
 
-    const context = createContext(integration);
+    const context = await createContext(integration);
 
     try {
       await plugin.onTaskMoved(event, context);
@@ -803,7 +808,7 @@ export async function broadcastTaskDueDateChanged(
     const plugin = getPlugin(integration.type);
     if (!plugin?.onTaskDueDateChanged) continue;
 
-    const context = createContext(integration);
+    const context = await createContext(integration);
 
     try {
       await plugin.onTaskDueDateChanged(event, context);
@@ -828,7 +833,7 @@ export async function broadcastTaskAssigneeChanged(
     const plugin = getPlugin(integration.type);
     if (!plugin?.onTaskAssigneeChanged) continue;
 
-    const context = createContext(integration);
+    const context = await createContext(integration);
 
     try {
       await plugin.onTaskAssigneeChanged(event, context);
@@ -853,7 +858,7 @@ export async function broadcastTaskUnassigned(
     const plugin = getPlugin(integration.type);
     if (!plugin?.onTaskUnassigned) continue;
 
-    const context = createContext(integration);
+    const context = await createContext(integration);
 
     try {
       await plugin.onTaskUnassigned(event, context);

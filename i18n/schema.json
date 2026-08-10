@@ -3935,6 +3935,18 @@
 						"connectionNamePlaceholder": {
 							"type": "string"
 						},
+						"oauthConnectionName": {
+							"type": "string"
+						},
+						"oauthHint": {
+							"type": "string"
+						},
+						"connectOAuth": {
+							"type": "string"
+						},
+						"reauthorizeOAuth": {
+							"type": "string"
+						},
 						"url": {
 							"type": "string"
 						},
@@ -4002,6 +4014,15 @@
 								"connectionCreated": {
 									"type": "string"
 								},
+								"oauthConnected": {
+									"type": "string"
+								},
+								"oauthFailed": {
+									"type": "string"
+								},
+								"popupBlocked": {
+									"type": "string"
+								},
 								"tokenRotated": {
 									"type": "string"
 								},
@@ -4023,6 +4044,9 @@
 							},
 							"required": [
 								"connectionCreated",
+								"oauthConnected",
+								"oauthFailed",
+								"popupBlocked",
 								"tokenRotated",
 								"connectionRemoved",
 								"repositoryAttached",
@@ -4042,6 +4066,10 @@
 						"rotate",
 						"connectionName",
 						"connectionNamePlaceholder",
+						"oauthConnectionName",
+						"oauthHint",
+						"connectOAuth",
+						"reauthorizeOAuth",
 						"url",
 						"token",
 						"tokenPlaceholder",

@@ -102,6 +102,10 @@ export function normalizeGitLabUrl(value: string): string {
   return `${parsed.origin}${parsed.pathname.replace(/\/+$/, "")}`;
 }
 
+export function gitLabInstanceUrl(baseUrl: string, path: string): string {
+  return `${normalizeGitLabUrl(baseUrl)}/${path.replace(/^\/+/, "")}`;
+}
+
 function configuredGitLabOrigins() {
   const configuredPublic = process.env.GITLAB_PUBLIC_URL?.trim();
   const configuredInternal = process.env.GITLAB_INTERNAL_URL?.trim();
@@ -148,6 +152,103 @@ async function assertAllowedNetworkRoute(
   }
 }
 
+async function fetchGitLabOrigin(
+  publicUrlValue: string,
+  internalUrlValue: string | undefined,
+  path: string,
+  init?: RequestInit,
+): Promise<{ response: Response; text: string }> {
+  const publicUrl = normalizeGitLabUrl(publicUrlValue);
+  const internalUrl = normalizeGitLabUrl(
+    internalUrlValue ?? resolveGitLabInternalUrl(publicUrl),
+  );
+  await assertAllowedNetworkRoute(publicUrl, internalUrl);
+
+  const requestPath = path.startsWith("/") ? path : `/${path}`;
+  const controller = new AbortController();
+  let timedOut = false;
+  const timeoutId = setTimeout(() => {
+    timedOut = true;
+    controller.abort();
+  }, GITLAB_FETCH_TIMEOUT_MS);
+
+  if (init?.signal) {
+    if (init.signal.aborted) controller.abort();
+    else {
+      init.signal.addEventListener("abort", () => controller.abort(), {
+        once: true,
+      });
+    }
+  }
+
+  try {
+    const response = await fetch(gitLabInstanceUrl(internalUrl, requestPath), {
+      ...init,
+      signal: controller.signal,
+      redirect: "manual",
+    });
+    if (response.status >= 300 && response.status < 400) {
+      throw new GitLabApiError(
+        "GitLab request was redirected",
+        response.status,
+      );
+    }
+    // Keep the abort timer alive until the response stream is fully consumed.
+    // fetch() resolves as soon as headers arrive, while response.text() can
+    // still stall indefinitely on a slow or malicious peer.
+    const text = await response.text();
+    return { response, text };
+  } catch (error) {
+    if (error instanceof GitLabApiError) throw error;
+    if (error instanceof Error && error.name === "AbortError" && timedOut) {
+      throw new GitLabApiError(
+        `GitLab request timed out after ${GITLAB_FETCH_TIMEOUT_MS}ms`,
+        408,
+      );
+    }
+    throw error;
+  } finally {
+    clearTimeout(timeoutId);
+  }
+}
+
+/** Call a server-owned GitLab OAuth endpoint without exposing its internal URL. */
+export async function gitlabOAuthFetch<T>(
+  options: { publicUrl: string; internalUrl?: string },
+  path: "/oauth/token" | "/oauth/revoke",
+  form: URLSearchParams,
+): Promise<T | undefined> {
+  const { response, text: responseText } = await fetchGitLabOrigin(
+    options.publicUrl,
+    options.internalUrl,
+    path,
+    {
+      method: "POST",
+      headers: {
+        Accept: "application/json",
+        "Content-Type": "application/x-www-form-urlencoded",
+      },
+      body: form,
+    },
+  );
+
+  if (!response.ok) {
+    throw new GitLabApiError(
+      `GitLab OAuth request failed (${response.status})`,
+      response.status,
+    );
+  }
+  if (!responseText) return undefined;
+  try {
+    return JSON.parse(responseText) as T;
+  } catch {
+    throw new GitLabApiError(
+      "GitLab OAuth endpoint returned invalid JSON",
+      response.status,
+    );
+  }
+}
+
 function authHeaders(auth: GitLabAuth): HeadersInit {
   return auth.type === "oauth"
     ? { Authorization: `Bearer ${auth.accessToken}` }
@@ -171,89 +272,52 @@ export async function gitlabFetch<T>(
   const internalUrl = normalizeGitLabUrl(
     options.internalUrl ?? resolveGitLabInternalUrl(publicUrl),
   );
-  await assertAllowedNetworkRoute(publicUrl, internalUrl);
-
   const apiPath = path.startsWith("/") ? path : `/${path}`;
-  const url = `${internalUrl}/api/v4${apiPath}`;
-  const controller = new AbortController();
-  let timedOut = false;
-  const timeoutId = setTimeout(() => {
-    timedOut = true;
-    controller.abort();
-  }, GITLAB_FETCH_TIMEOUT_MS);
-
-  if (init?.signal) {
-    if (init.signal.aborted) controller.abort();
-    else {
-      init.signal.addEventListener("abort", () => controller.abort(), {
-        once: true,
-      });
-    }
-  }
-
-  try {
-    const response = await fetch(url, {
+  const { response, text } = await fetchGitLabOrigin(
+    publicUrl,
+    internalUrl,
+    `/api/v4${apiPath}`,
+    {
       ...init,
-      signal: controller.signal,
-      redirect: "manual",
       headers: {
         Accept: "application/json",
         "Content-Type": "application/json",
         ...authHeaders(options.auth),
         ...init?.headers,
       },
-    });
+    },
+  );
 
-    if (response.status >= 300 && response.status < 400) {
-      throw new GitLabApiError(
-        "GitLab request was redirected",
-        response.status,
-      );
-    }
-
-    const text = await response.text();
-    if (!response.ok) {
-      let detail = text;
-      try {
-        const parsed = JSON.parse(text) as {
-          message?: unknown;
-          error?: unknown;
-        };
-        detail = String(parsed.message ?? parsed.error ?? text);
-      } catch {
-        // Keep the original response text.
-      }
-      throw new GitLabApiError(
-        `GitLab API error ${response.status}: ${detail}`,
-        response.status,
-        text,
-      );
-    }
-
-    if (response.status === 204 || text === "") {
-      return { data: undefined, headers: response.headers };
-    }
-
+  if (!response.ok) {
+    let detail = text;
     try {
-      return { data: JSON.parse(text) as T, headers: response.headers };
+      const parsed = JSON.parse(text) as {
+        message?: unknown;
+        error?: unknown;
+      };
+      detail = String(parsed.message ?? parsed.error ?? text);
     } catch {
-      throw new GitLabApiError(
-        "GitLab API returned invalid JSON",
-        response.status,
-        text,
-      );
+      // Keep the original response text.
     }
-  } catch (error) {
-    if (error instanceof GitLabApiError) throw error;
-    if (error instanceof Error && error.name === "AbortError" && timedOut) {
-      throw new GitLabApiError(
-        `GitLab request timed out after ${GITLAB_FETCH_TIMEOUT_MS}ms`,
-        408,
-      );
-    }
-    throw error;
-  } finally {
-    clearTimeout(timeoutId);
+    throw new GitLabApiError(
+      `GitLab API error ${response.status}: ${detail}`,
+      response.status,
+      text,
+    );
+  }
+
+  if (response.status === 204 || text === "") {
+    return { data: undefined, headers: response.headers };
+  }
+
+  try {
+    return { data: JSON.parse(text) as T, headers: response.headers };
+  } catch {
+    throw new GitLabApiError(
+      "GitLab API returned invalid JSON",
+      response.status,
+      text,
+    );
   }
 }
 

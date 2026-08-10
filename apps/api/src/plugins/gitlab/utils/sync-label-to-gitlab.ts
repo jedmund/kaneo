@@ -1,7 +1,7 @@
 import { eq } from "drizzle-orm";
 import db from "../../../database";
 import { externalLinkTable } from "../../../database/schema";
-import { decryptScmCredential } from "../../../scm/secrets";
+import { getValidGitLabCredential } from "../../../gitlab-integration/oauth";
 import { createGitLabClient } from "../client";
 
 const namedColorToHex: Record<string, string> = {
@@ -76,7 +76,7 @@ async function getGitLabIssueContext(taskId: string) {
     return null;
   }
 
-  const credential = decryptScmCredential(connection.credentialCiphertext);
+  const credential = await getValidGitLabCredential(connection);
   return {
     client: createGitLabClient({
       publicUrl: connection.publicUrl,

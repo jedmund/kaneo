@@ -1259,14 +1259,21 @@
 				"importFailed": "Failed to import GitLab issues",
 				"repositoryAttached": "GitLab repository attached and webhook provisioned",
 				"repositoryDetached": "GitLab repository detached",
-				"tokenRotated": "GitLab token rotated"
+				"tokenRotated": "GitLab token rotated",
+				"oauthConnected": "GitLab OAuth connection authorized",
+				"oauthFailed": "GitLab OAuth authorization failed",
+				"popupBlocked": "Allow popups to authorize GitLab"
 			},
 			"token": "Group access token",
 			"tokenHint": "Use a Maintainer group access token with API access so Kaneo can provision project webhooks.",
 			"tokenPlaceholder": "Paste a token with api scope",
 			"url": "Public GitLab URL",
 			"webhookMissing": "Webhook missing",
-			"webhookReady": "Webhook ready"
+			"webhookReady": "Webhook ready",
+			"connectOAuth": "Connect with GitLab",
+			"oauthConnectionName": "OAuth connection name",
+			"oauthHint": "Authorize Kaneo for the server-configured instance at {{url}}. Access and refresh tokens remain encrypted.",
+			"reauthorizeOAuth": "Reauthorize"
 		}
 	},
 	"navigation": {

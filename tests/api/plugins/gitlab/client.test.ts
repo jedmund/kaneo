@@ -2,6 +2,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   createGitLabClient,
   gitlabFetch,
+  gitlabOAuthFetch,
   normalizeGitLabUrl,
   resolveGitLabInternalUrl,
 } from "../../../../apps/api/src/plugins/gitlab/client";
@@ -15,6 +16,7 @@ const savedEnvironment = {
 
 afterEach(() => {
   vi.restoreAllMocks();
+  vi.useRealTimers();
   for (const [key, value] of Object.entries(savedEnvironment)) {
     if (value === undefined) delete process.env[key];
     else process.env[key] = value;
@@ -100,6 +102,98 @@ describe("GitLab URL routing", () => {
         headers: expect.objectContaining({ "PRIVATE-TOKEN": "glpat-secret" }),
       }),
     );
+  });
+
+  it("posts OAuth exchanges through the configured internal origin", async () => {
+    process.env.GITLAB_PUBLIC_URL = "https://git.atelier.house";
+    process.env.GITLAB_INTERNAL_URL = "http://gitlab";
+    const fetchMock = vi.spyOn(globalThis, "fetch").mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          access_token: "access",
+          refresh_token: "refresh",
+          expires_in: 7200,
+        }),
+        { status: 200 },
+      ),
+    );
+    const form = new URLSearchParams({
+      grant_type: "authorization_code",
+      client_secret: "secret",
+    });
+
+    await expect(
+      gitlabOAuthFetch(
+        {
+          publicUrl: "https://git.atelier.house",
+          internalUrl: "http://gitlab",
+        },
+        "/oauth/token",
+        form,
+      ),
+    ).resolves.toMatchObject({ access_token: "access" });
+    expect(fetchMock).toHaveBeenCalledWith(
+      "http://gitlab/oauth/token",
+      expect.objectContaining({
+        method: "POST",
+        body: form,
+        redirect: "manual",
+      }),
+    );
+  });
+
+  it("does not expose OAuth response bodies in errors", async () => {
+    process.env.GITLAB_PUBLIC_URL = "https://git.atelier.house";
+    process.env.GITLAB_INTERNAL_URL = "http://gitlab";
+    vi.spyOn(globalThis, "fetch").mockResolvedValue(
+      new Response('sensitive error containing token "oauth-secret"', {
+        status: 401,
+      }),
+    );
+
+    await expect(
+      gitlabOAuthFetch(
+        {
+          publicUrl: "https://git.atelier.house",
+          internalUrl: "http://gitlab",
+        },
+        "/oauth/token",
+        new URLSearchParams(),
+      ),
+    ).rejects.not.toThrow(/oauth-secret/);
+  });
+
+  it("keeps the timeout active while consuming the response body", async () => {
+    process.env.KANEO_ALLOW_PRIVATE_WEBHOOK_DESTINATIONS = "true";
+    vi.useFakeTimers();
+    vi.spyOn(globalThis, "fetch").mockImplementation(async (_url, init) => {
+      const signal = init?.signal;
+      const body = new ReadableStream({
+        start(controller) {
+          signal?.addEventListener(
+            "abort",
+            () => controller.error(new DOMException("Aborted", "AbortError")),
+            { once: true },
+          );
+        },
+      });
+      return new Response(body, { status: 200 });
+    });
+
+    const request = gitlabFetch(
+      {
+        publicUrl: "https://gitlab.example",
+        auth: { type: "token", accessToken: "token" },
+      },
+      "/user",
+    );
+    const rejection = expect(request).rejects.toMatchObject({
+      name: "GitLabApiError",
+      status: 408,
+    });
+    await vi.advanceTimersByTimeAsync(15_000);
+
+    await rejection;
   });
 });
 
