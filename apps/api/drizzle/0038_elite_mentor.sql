@@ -106,6 +106,24 @@ SET "integration_repository_id" = repository."id"
 FROM "integration_repository" repository
 WHERE link."integration_id" = repository."integration_id"
 	AND link."integration_repository_id" IS NULL;--> statement-breakpoint
+-- The legacy schema allowed more than one task link for the same remote
+-- resource. Once those rows are assigned to a repository they would violate
+-- the repository-scoped unique constraint below. Keep the oldest link as the
+-- canonical mapping and remove only its later conflicts.
+WITH "ranked_external_links" AS (
+	SELECT
+		"id",
+		row_number() OVER (
+			PARTITION BY "integration_repository_id", "resource_type", "external_id"
+			ORDER BY "created_at" ASC, "id" ASC
+		) AS "duplicate_rank"
+	FROM "external_link"
+	WHERE "integration_repository_id" IS NOT NULL
+)
+DELETE FROM "external_link" link
+USING "ranked_external_links" ranked
+WHERE link."id" = ranked."id"
+	AND ranked."duplicate_rank" > 1;--> statement-breakpoint
 ALTER TABLE "integration_repository" ADD CONSTRAINT "integration_repository_integration_id_integration_id_fk" FOREIGN KEY ("integration_id") REFERENCES "public"."integration"("id") ON DELETE cascade ON UPDATE cascade;--> statement-breakpoint
 ALTER TABLE "integration_repository" ADD CONSTRAINT "integration_repository_connection_id_scm_connection_id_fk" FOREIGN KEY ("connection_id") REFERENCES "public"."scm_connection"("id") ON DELETE restrict ON UPDATE cascade;--> statement-breakpoint
 ALTER TABLE "scm_connection" ADD CONSTRAINT "scm_connection_workspace_id_workspace_id_fk" FOREIGN KEY ("workspace_id") REFERENCES "public"."workspace"("id") ON DELETE cascade ON UPDATE cascade;--> statement-breakpoint
